@@ -117,6 +117,16 @@ def check_and_process_issues(processed_issues, issue_last_comment, shutdown_requ
       next unless issue_number
       next if processed_issues.include?(issue_number)
 
+      # Skip issues already completed or in progress by ADW
+      adw_labels = issue.labels.select { |l| l.name.start_with?("adw/") }
+      if adw_labels.any?
+        non_error_labels = adw_labels.reject { |l| l.name == "adw/error" }
+        if non_error_labels.any?
+          puts "INFO: Skipping issue ##{issue_number} - ADW active (#{non_error_labels.map(&:name).join(', ')})"
+          next
+        end
+      end
+
       if should_process_issue?(issue_number, issue_last_comment)
         new_qualifying_issues << issue_number
       end

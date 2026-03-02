@@ -183,7 +183,7 @@ def pull_request(branch_name, issue, adw_id, logger)
   [pr_url, nil]
 end
 
-def check_error(error_or_response, issue_number, adw_id, agent_name, error_prefix, logger)
+def check_error(error_or_response, issue_number, error_prefix, logger, tracker)
   error = nil
 
   if error_or_response.is_a?(Adw::AgentPromptResponse)
@@ -195,10 +195,7 @@ def check_error(error_or_response, issue_number, adw_id, agent_name, error_prefi
   return unless error
 
   logger.error("#{error_prefix}: #{error}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, agent_name, "#{error_prefix}: #{error}")
-  )
+  Adw::Tracker.update(tracker, issue_number, "error", logger)
   exit 1
 end
 
@@ -222,110 +219,74 @@ def main
     exit 1
   end
 
-  # Fetch and display issue
+  # Fetch issue
   issue = Adw::GitHub.fetch_issue(issue_number, repo_path)
-
   logger.debug("issue: #{issue.to_json}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "Starting ADW workflow")
-  )
+
+  # Initialize tracker (load existing or create new)
+  tracker = Adw::Tracker.load(issue_number) || {}
+  tracker[:adw_id] = adw_id
 
   # Classify the issue
+  Adw::Tracker.update(tracker, issue_number, "classifying", logger)
   issue_command, error = classify_issue(issue, adw_id, logger)
-  check_error(error, issue_number, adw_id, "ops", "Error classifying issue", logger)
+  check_error(error, issue_number, "Error classifying issue", logger, tracker)
 
   logger.info("issue_command: #{issue_command}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "Issue classified as: #{issue_command}")
-  )
+  tracker[:classification] = issue_command
 
   # Create git branch
   branch_name, error = git_branch(issue, issue_command, adw_id, logger)
-  check_error(error, issue_number, adw_id, "ops", "Error creating branch", logger)
+  check_error(error, issue_number, "Error creating branch", logger, tracker)
 
   logger.info("Working on branch: #{branch_name}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "Working on branch: #{branch_name}")
-  )
-
-  # Deterministic plan path
-  plan_path = ".issues/#{issue_number}/plan.md"
+  tracker[:branch_name] = branch_name
 
   # Build the implementation plan
-  logger.info("\n=== Building implementation plan ===")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, AGENT_PLANNER, "Building implementation plan")
-  )
+  plan_path = ".issues/#{issue_number}/plan.md"
+  Adw::Tracker.update(tracker, issue_number, "planning", logger)
 
   issue_plan_response = build_plan(issue, issue_command, plan_path, adw_id, logger)
-  check_error(issue_plan_response, issue_number, adw_id, AGENT_PLANNER, "Error building plan", logger)
+  check_error(issue_plan_response, issue_number, "Error building plan", logger, tracker)
 
   logger.debug("issue_plan_response.output: #{issue_plan_response.output}")
   logger.info("Plan created at: #{plan_path}")
 
-  # Post plan as issue comment (source of truth)
-  logger.info("\n=== Posting plan to issue ===")
+  # Post plan as separate issue comment (source of truth)
   begin
     plan_content = File.read(plan_path)
     plan_comment = format_issue_message(
       adw_id, AGENT_PLANNER,
       "Implementation plan\n\n<details>\n<summary>Implementation Plan</summary>\n\n#{plan_content}\n</details>"
     )
-    Adw::GitHub.make_issue_comment(issue_number, plan_comment)
+    Adw::GitHub.create_issue_comment(issue_number, plan_comment)
     logger.info("Plan posted to issue ##{issue_number}")
   rescue => e
     logger.warn("Warning: Could not post plan to issue: #{e.message}")
   end
 
   # Implement the plan
-  logger.info("\n=== Implementing solution ===")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, AGENT_IMPLEMENTOR, "Implementing solution")
-  )
+  Adw::Tracker.update(tracker, issue_number, "implementing", logger)
   implement_response = implement_plan(plan_path, adw_id, logger)
-  check_error(implement_response, issue_number, adw_id, AGENT_IMPLEMENTOR, "Error implementing solution", logger)
+  check_error(implement_response, issue_number, "Error implementing solution", logger, tracker)
 
   logger.debug("implement_response.output: #{implement_response.output}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, AGENT_IMPLEMENTOR, "Solution implemented")
-  )
 
   # Commit the implementation
-  logger.info("\n=== Committing implementation ===")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, AGENT_IMPLEMENTOR, "Committing implementation")
-  )
+  Adw::Tracker.update(tracker, issue_number, "committing", logger)
   commit_msg, error = git_commit(AGENT_IMPLEMENTOR, issue, issue_command, adw_id, logger)
-  check_error(error, issue_number, adw_id, AGENT_IMPLEMENTOR, "Error committing implementation", logger)
+  check_error(error, issue_number, "Error committing implementation", logger, tracker)
 
   # Create pull request
-  logger.info("\n=== Creating pull request ===")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "Creating pull request")
-  )
-
+  Adw::Tracker.update(tracker, issue_number, "creating_pr", logger)
   pr_url, error = pull_request(branch_name, issue, adw_id, logger)
-  check_error(error, issue_number, adw_id, "ops", "Error creating pull request", logger)
+  check_error(error, issue_number, "Error creating pull request", logger, tracker)
 
-  logger.info("\nPull request created: #{pr_url}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "Pull request created: #{pr_url}")
-  )
+  logger.info("Pull request created: #{pr_url}")
 
+  # Done
+  Adw::Tracker.update(tracker, issue_number, "done", logger)
   logger.info("ADW workflow completed successfully for issue ##{issue_number}")
-  Adw::GitHub.make_issue_comment(
-    issue_number,
-    format_issue_message(adw_id, "ops", "ADW workflow completed successfully")
-  )
 end
 
 main

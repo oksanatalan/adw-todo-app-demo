@@ -17,12 +17,14 @@ module Adw
       end
 
       def repo_url
-        stdout, stderr, status = Open3.capture3("git", "remote", "get-url", "origin")
-        unless status.success?
-          raise "No git remote 'origin' found. Please ensure you're in a git repository with a remote. #{stderr}"
-        end
+        @repo_url ||= begin
+          stdout, stderr, status = Open3.capture3("git", "remote", "get-url", "origin")
+          unless status.success?
+            raise "No git remote 'origin' found. Please ensure you're in a git repository with a remote. #{stderr}"
+          end
 
-        stdout.strip
+          stdout.strip
+        end
       end
 
       def extract_repo_path(url)
@@ -55,51 +57,67 @@ module Adw
         exit 1
       end
 
-      def make_issue_comment(issue_id, comment)
-        github_repo_url = repo_url
-        repo_path = extract_repo_path(github_repo_url)
+      def create_issue_comment(issue_number, body)
+        repo_path = extract_repo_path(repo_url)
 
         cmd = [
-          "gh", "issue", "comment", issue_id.to_s,
-          "-R", repo_path,
-          "--body", comment
+          "gh", "api",
+          "repos/#{repo_path}/issues/#{issue_number}/comments",
+          "-f", "body=#{body}"
         ]
 
         env = github_env
-        _stdout, stderr, status = Open3.capture3(*([env, *cmd].compact))
+        stdout, stderr, status = Open3.capture3(*([env, *cmd].compact))
 
-        if status.success?
-          puts "Successfully posted comment to issue ##{issue_id}"
-        else
-          warn "Error posting comment: #{stderr}"
-          exit status.exitstatus
+        unless status.success?
+          warn "Error creating comment: #{stderr}"
+          return nil
         end
+
+        data = JSON.parse(stdout)
+        data["id"].to_s
       end
 
-      def mark_issue_in_progress(issue_id)
-        github_repo_url = repo_url
-        repo_path = extract_repo_path(github_repo_url)
+      def update_issue_comment(comment_id, body)
+        repo_path = extract_repo_path(repo_url)
+
+        cmd = [
+          "gh", "api",
+          "repos/#{repo_path}/issues/comments/#{comment_id}",
+          "--method", "PATCH",
+          "-f", "body=#{body}"
+        ]
+
         env = github_env
-
-        # Add "in_progress" label
-        cmd = [
-          "gh", "issue", "edit", issue_id.to_s,
-          "-R", repo_path,
-          "--add-label", "in_progress"
-        ]
-
         _stdout, stderr, status = Open3.capture3(*([env, *cmd].compact))
-        puts "Note: Could not add 'in_progress' label: #{stderr}" unless status.success?
 
-        # Assign to self
+        unless status.success?
+          warn "Error updating comment #{comment_id}: #{stderr}"
+          return false
+        end
+
+        true
+      end
+
+      def transition_label(issue_number, new_label, old_label = nil)
+        repo_path = extract_repo_path(repo_url)
+
         cmd = [
-          "gh", "issue", "edit", issue_id.to_s,
+          "gh", "issue", "edit", issue_number.to_s,
           "-R", repo_path,
-          "--add-assignee", "@me"
+          "--add-label", new_label
         ]
 
-        _stdout, _stderr, status = Open3.capture3(*([env, *cmd].compact))
-        puts "Assigned issue ##{issue_id} to self" if status.success?
+        cmd.push("--remove-label", old_label) if old_label
+
+        env = github_env
+        _stdout, stderr, status = Open3.capture3(*([env, *cmd].compact))
+
+        unless status.success?
+          warn "Warning: Could not transition label to '#{new_label}': #{stderr}"
+        end
+
+        status.success?
       end
 
       def fetch_open_issues(repo_path)

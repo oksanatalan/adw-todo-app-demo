@@ -48,7 +48,7 @@ module Adw
 
         command_name = match[1].delete_prefix("/")
 
-        project_root = File.dirname(File.dirname(File.dirname(__dir__)))
+        project_root = Adw.project_root
         prompt_dir = File.join(project_root, "adws", "log", adw_id, agent_name, "prompts")
         FileUtils.mkdir_p(prompt_dir)
 
@@ -164,7 +164,7 @@ module Adw
         prompt = "#{request.slash_command} #{request.args.join(' ')}"
 
         # Create output directory with adw_id at project root
-        project_root = File.dirname(File.dirname(File.dirname(__dir__)))
+        project_root = Adw.project_root
         output_dir = File.join(project_root, "adws", "log", request.adw_id, request.agent_name)
         FileUtils.mkdir_p(output_dir)
 
