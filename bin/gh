@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# --- Local-first: usar gh del sistema si está instalado ---
+# Buscar gh en PATH excluyendo nuestro propio directorio bin/
+SEARCH_PATH=":${PATH}:"
+SEARCH_PATH="${SEARCH_PATH//:${SCRIPT_DIR}:/:}"
+SEARCH_PATH="${SEARCH_PATH#:}"
+SEARCH_PATH="${SEARCH_PATH%:}"
+SYSTEM_GH="$(PATH="$SEARCH_PATH" command -v gh 2>/dev/null || true)"
+
+if [ -n "$SYSTEM_GH" ]; then
+  exec "$SYSTEM_GH" "$@"
+fi
+
+# --- Docker fallback ---
+IMAGE_NAME="aurgi-sample-app-gh"
+
+# Auto-build en primer uso
+if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+  echo "Building gh Docker image..." >&2
+  docker build -t "$IMAGE_NAME" "$PROJECT_ROOT/docker/gh" >&2
+fi
+
+# Crear directorio de config de gh si no existe
+mkdir -p "$PROJECT_ROOT/.gh"
+
+# -i siempre: reenviar stdin (necesario para gh api --input -)
+# -t solo para comandos interactivos (gh auth login)
+TTY_FLAG=""
+if [ "${1:-}" = "auth" ]; then
+  TTY_FLAG="-t"
+fi
+
+exec docker run --rm -i $TTY_FLAG \
+  -v "$PROJECT_ROOT:$PROJECT_ROOT" \
+  -v "/tmp:/tmp" \
+  -v "$PROJECT_ROOT/.gh:/root/.config/gh" \
+  -w "${PWD}" \
+  "$IMAGE_NAME" \
+  "$@"

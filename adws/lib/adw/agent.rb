@@ -23,20 +23,15 @@ module Adw
       end
 
       def claude_env
+        project_bin = File.join(Adw.project_root, "bin")
         env = {
           "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR" => ENV.fetch("CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR", "true"),
           "HOME" => ENV["HOME"],
           "USER" => ENV["USER"],
-          "PATH" => ENV["PATH"],
+          "PATH" => "#{project_bin}:#{ENV['PATH']}",
           "SHELL" => ENV["SHELL"],
           "TERM" => ENV["TERM"]
         }
-
-        github_pat = ENV["GITHUB_PAT"]
-        if github_pat
-          env["GITHUB_PAT"] = github_pat
-          env["GH_TOKEN"] = github_pat
-        end
 
         # Filter out nil values - exclude ANTHROPIC_API_KEY to force subscription auth
         env.compact

@@ -7,12 +7,9 @@ module Adw
   module GitHub
     class << self
       def github_env
-        github_pat = ENV["GITHUB_PAT"]
-        return nil unless github_pat
-
+        project_bin = File.join(Adw.project_root, "bin")
         {
-          "GH_TOKEN" => github_pat,
-          "PATH" => ENV.fetch("PATH", "")
+          "PATH" => "#{project_bin}:#{ENV.fetch('PATH', '')}"
         }
       end
 
@@ -51,11 +48,9 @@ module Adw
           exit status.exitstatus
         end
       rescue Errno::ENOENT
-        warn "Error: GitHub CLI (gh) is not installed."
-        warn "\nTo install gh:"
-        warn "  - macOS: brew install gh"
-        warn "  - Linux: See https://github.com/cli/cli#installation"
-        warn "\nAfter installation, authenticate with: gh auth login"
+        warn "Error: GitHub CLI (gh) is not available."
+        warn "\nEnsure Docker is running — gh runs via bin/gh wrapper."
+        warn "To authenticate: bin/gh auth login"
         exit 1
       end
 
