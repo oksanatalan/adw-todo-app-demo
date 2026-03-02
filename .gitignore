@@ -12,3 +12,6 @@
 
 # ADW local plans
 .issues/
+
+# ADW execution logs
+adws/log/

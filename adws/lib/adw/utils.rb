@@ -15,9 +15,9 @@ module Adw
       end
 
       def setup_logger(adw_id, trigger_type = "adw_plan_build")
-        # Create log directory: agents/{adw_id}/{trigger_type}/
+        # Create log directory: adws/log/{adw_id}/{trigger_type}/
         project_root = File.dirname(File.dirname(File.dirname(__dir__)))
-        log_dir = File.join(project_root, "agents", adw_id, trigger_type)
+        log_dir = File.join(project_root, "adws", "log", adw_id, trigger_type)
         FileUtils.mkdir_p(log_dir)
 
         log_file = File.join(log_dir, "execution.log")
