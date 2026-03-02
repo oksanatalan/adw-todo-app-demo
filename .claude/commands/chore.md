@@ -12,13 +12,12 @@ allowed-tools:
 
 # Planificación de Chore
 
-Crea un nuevo plan en DIRECTORIO_PLANES para resolver el `Chore` usando exactamente el formato markdown `Formato del Plan`. Sigue las `Instrucciones` y el `Workflow` para crear el plan.
+Crea un nuevo plan en RUTA_PLAN para resolver el `Chore` usando exactamente el formato markdown `Formato del Plan`. Sigue las `Instrucciones` y el `Workflow` para crear el plan.
 
 ## Variables
 
-DIRECTORIO_PLANES: plans/ - Directorio donde se guardan los planes
-CHORE: $ARGUMENTS - Descripción del chore a completar
-RUTA_PLAN: Ruta completa del fichero del plan creado en DIRECTORIO_PLANES
+RUTA_PLAN: Si el primer argumento de $ARGUMENTS es una ruta (contiene / o termina en .md), usarlo como ruta del plan. Si no, generar en plans/<kebab-case-descriptivo>.md
+CHORE: El resto de $ARGUMENTS (excluyendo RUTA_PLAN si fue proporcionado como primer argumento)
 
 ## Instrucciones
 
@@ -31,13 +30,12 @@ RUTA_PLAN: Ruta completa del fichero del plan creado en DIRECTORIO_PLANES
 ### Paso 1: Preparar contexto
 - Ejecuta el comando `/prime` para entender la estructura y contexto del codebase.
 - Ejecuta el comando `/env:setup` para preparar el entorno de desarrollo.
-- Si DIRECTORIO_PLANES no existe, créalo antes de escribir el plan.
 
 ### Paso 2: Investigar
 - Investiga el codebase y elabora un plan para completar CHORE.
 
 ### Paso 3: Crear el plan
-- Crea el plan en DIRECTORIO_PLANES. Usa kebab-case descriptivo para el nombre del fichero (ej: `DIRECTORIO_PLANES/actualizar-dependencias-frontend.md`).
+- Crea el plan en RUTA_PLAN (creando directorios intermedios si es necesario con `mkdir -p`).
 - Usa el `Formato del Plan` de abajo para crear el plan.
 
 ## Formato del Plan
