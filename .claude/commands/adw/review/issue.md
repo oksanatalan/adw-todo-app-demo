@@ -50,7 +50,7 @@ PLAN_PATH: $2 - Ruta al fichero del plan de implementacion
 - Si aun no responde, reporta error en el JSON de salida.
 
 ### Paso 4: Tomar capturas de pantalla
-- Crea un script temporal de Node.js en `/tmp/adw_review_issue.js` que use Playwright para:
+- Crea un script temporal de Node.js en `.issues/{issue_number}/adw_review_issue.js` que use Playwright para:
   1. Abrir el navegador Chromium en modo headless.
   2. Navegar a http://localhost:5173 (pagina principal).
   3. Esperar a que la pagina cargue completamente (networkidle).
@@ -58,7 +58,7 @@ PLAN_PATH: $2 - Ruta al fichero del plan de implementacion
   5. Si el plan o la issue mencionan interacciones especificas (crear tarea, completar tarea, filtrar, etc.), realizarlas y tomar capturas adicionales.
   6. Guardar cada captura en `.issues/{issue_number}/evidences/01_desc.png`, `02_desc.png`, etc.
   7. Cerrar el navegador.
-- Ejecuta el script: `node /tmp/adw_review_issue.js`
+- Ejecuta el script: `node .issues/{issue_number}/adw_review_issue.js`
 - IMPORTANTE: Apunta hacia 1-5 capturas enfocadas en la funcionalidad critica.
 - IMPORTANTE: Usa nombres descriptivos: `01_vista_principal.png`, `02_formulario_tarea.png`, etc.
 
