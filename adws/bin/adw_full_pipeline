@@ -55,7 +55,7 @@ end
 
 # --- Funciones de testing ---
 
-def log_test_results(issue_number, adw_id, results, passed_count, failed_count, logger)
+def log_test_results(issue_number, adw_id, results, passed_count, failed_count, logger, tracker)
   parts = []
 
   if failed_count > 0
@@ -72,10 +72,12 @@ def log_test_results(issue_number, adw_id, results, passed_count, failed_count, 
     parts << line
   end
 
-  Adw::GitHub.create_issue_comment(
+  comment_id = Adw::GitHub.create_issue_comment(
     issue_number,
     format_issue_message(adw_id, "test_summary", parts.join("\n"))
   )
+  Adw::Tracker.set_phase_comment(tracker, "test", comment_id)
+  Adw::Tracker.save(issue_number, tracker)
 
   logger.info("Test results posted to issue ##{issue_number}")
 end
@@ -106,10 +108,12 @@ def run_review(adw_id, issue_number, issue, tracker, logger)
 
   # Publicar resultados como comentario en la issue
   review_comment = format_review_comment(review_result)
-  Adw::GitHub.create_issue_comment(
+  review_comment_id = Adw::GitHub.create_issue_comment(
     issue_number,
     format_issue_message(adw_id, AGENT_REVIEWER_TECH, review_comment)
   )
+  Adw::Tracker.set_phase_comment(tracker, "review_tech", review_comment_id)
+  Adw::Tracker.save(issue_number, tracker)
 
   # Manejar hallazgos criticos con loop de auto-fix
   if review_result[:action_required] == "fix_and_rerun"
@@ -270,10 +274,12 @@ def run_issue_review(adw_id, issue_number, issue, tracker, logger)
 
   # Publicar comentario de evidencia
   evidence_comment = format_evidence_comment(result)
-  Adw::GitHub.create_issue_comment(
+  evidence_comment_id = Adw::GitHub.create_issue_comment(
     issue_number,
     format_issue_message(adw_id, AGENT_REVIEWER_ISSUE, evidence_comment)
   )
+  Adw::Tracker.set_phase_comment(tracker, "review_issue", evidence_comment_id)
+  Adw::Tracker.save(issue_number, tracker)
 
   logger.info("Evidencia visual publicada en issue ##{issue_number}")
   result
@@ -302,10 +308,10 @@ def run_documentation(adw_id, issue_number, tracker, logger)
 
   doc_path = response.output.strip
   logger.info("Documentacion generada: #{doc_path}")
-  post_documentation_summary(issue_number, adw_id, doc_path, logger)
+  post_documentation_summary(issue_number, adw_id, doc_path, logger, tracker)
 end
 
-def post_documentation_summary(issue_number, adw_id, doc_path, logger)
+def post_documentation_summary(issue_number, adw_id, doc_path, logger, tracker)
   content = File.read(doc_path)
 
   parts = []
@@ -327,10 +333,12 @@ def post_documentation_summary(issue_number, adw_id, doc_path, logger)
     parts << $1.strip
   end
 
-  Adw::GitHub.create_issue_comment(
+  doc_comment_id = Adw::GitHub.create_issue_comment(
     issue_number,
     format_issue_message(adw_id, AGENT_DOCUMENTER, parts.join("\n"))
   )
+  Adw::Tracker.set_phase_comment(tracker, "document", doc_comment_id)
+  Adw::Tracker.save(issue_number, tracker)
   logger.info("Documentation summary posted to issue ##{issue_number}")
 rescue => e
   logger.warn("Warning: Could not post documentation summary: #{e.message}")
@@ -422,7 +430,7 @@ def main
 
   results, passed_count, failed_count = run_tests_with_resolution(adw_id, issue_number, logger, verbose_comments: false)
 
-  log_test_results(issue_number, adw_id, results, passed_count, failed_count, logger)
+  log_test_results(issue_number, adw_id, results, passed_count, failed_count, logger, tracker)
   logger.info("Resultados de tests: #{passed_count} pasados, #{failed_count} fallidos")
 
   # Si los tests fallan, parar el pipeline

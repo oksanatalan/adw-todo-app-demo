@@ -106,7 +106,8 @@ module Adw
           "classification" => tracker[:classification],
           "branch_name" => tracker[:branch_name],
           "status" => tracker[:status],
-          "patches" => (tracker[:patches] || []).map { |p| p.transform_keys(&:to_s) }
+          "patches" => (tracker[:patches] || []).map { |p| p.transform_keys(&:to_s) },
+          "phase_comments" => (tracker[:phase_comments] || {})
         }
 
         content = "#{YAML.dump(data)}---\n"
@@ -125,10 +126,18 @@ module Adw
           classification: data["classification"],
           branch_name: data["branch_name"],
           status: data["status"],
-          patches: (data["patches"] || []).map { |p| p.transform_keys(&:to_sym) }
+          patches: (data["patches"] || []).map { |p| p.transform_keys(&:to_sym) },
+          phase_comments: (data["phase_comments"] || {})
         }
       rescue Errno::ENOENT, Psych::SyntaxError
         nil
+      end
+
+      def set_phase_comment(tracker, phase, comment_id)
+        return unless comment_id
+
+        tracker[:phase_comments] ||= {}
+        tracker[:phase_comments][phase.to_s] = comment_id
       end
 
       def add_patch(tracker, patch_file, comment_id, logger)

@@ -230,7 +230,9 @@ def main
   logger.info("Plan created at: #{plan_path}")
 
   # Post plan as separate issue comment (source of truth)
-  post_plan_comment(issue_number, adw_id, AGENT_PLANNER, plan_path, "Implementation Plan", logger)
+  plan_comment_id = post_plan_comment(issue_number, adw_id, AGENT_PLANNER, plan_path, "Implementation Plan", logger)
+  Adw::Tracker.set_phase_comment(tracker, "plan", plan_comment_id)
+  Adw::Tracker.save(issue_number, tracker)
 
   # Implement the plan
   Adw::Tracker.update(tracker, issue_number, "implementing", logger)
