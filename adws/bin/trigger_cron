@@ -15,7 +15,6 @@
 #
 
 require "bundler/setup"
-require "dotenv/load"
 require "rufus-scheduler"
 require "set"
 require_relative "../lib/adw"

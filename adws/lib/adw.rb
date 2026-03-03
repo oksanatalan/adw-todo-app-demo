@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "dotenv"
+Dotenv.load(File.join(__dir__, "../.env"))
+
 module Adw
   def self.project_root
     @project_root ||= File.dirname(File.dirname(__dir__))
