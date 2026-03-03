@@ -43,11 +43,12 @@ def parse_args
   [issue_number, adw_id]
 end
 
-def classify_issue(issue, adw_id, logger)
+def classify_issue(issue, issue_number, adw_id, logger)
   request = Adw::AgentTemplateRequest.new(
     agent_name: AGENT_CLASSIFIER,
     slash_command: "/adw:classify_issue",
     args: [issue.to_json],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "sonnet"
   )
@@ -75,11 +76,12 @@ def classify_issue(issue, adw_id, logger)
   [issue_command, nil]
 end
 
-def build_plan(issue, command, plan_path, adw_id, logger)
+def build_plan(issue, command, plan_path, issue_number, adw_id, logger)
   request = Adw::AgentTemplateRequest.new(
     agent_name: AGENT_PLANNER,
     slash_command: command,
     args: [plan_path, "#{issue.title}: #{issue.body}"],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "opus"
   )
@@ -93,11 +95,12 @@ def build_plan(issue, command, plan_path, adw_id, logger)
   response
 end
 
-def implement_plan(plan_file, adw_id, logger)
+def implement_plan(plan_file, issue_number, adw_id, logger)
   request = Adw::AgentTemplateRequest.new(
     agent_name: AGENT_IMPLEMENTOR,
     slash_command: "/implement",
     args: [plan_file],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "sonnet"
   )
@@ -111,13 +114,14 @@ def implement_plan(plan_file, adw_id, logger)
   response
 end
 
-def git_branch(issue, issue_class, adw_id, logger)
+def git_branch(issue, issue_class, issue_number, adw_id, logger)
   issue_type = issue_class.delete_prefix("/")
 
   request = Adw::AgentTemplateRequest.new(
     agent_name: AGENT_BRANCH_GENERATOR,
     slash_command: "/adw:generate_branch_name",
     args: [issue_type, adw_id, issue.to_json],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "sonnet"
   )
@@ -133,7 +137,7 @@ def git_branch(issue, issue_class, adw_id, logger)
   [branch_name, nil]
 end
 
-def git_commit(agent_name, issue, issue_class, adw_id, logger)
+def git_commit(agent_name, issue, issue_class, issue_number, adw_id, logger)
   issue_type = issue_class.delete_prefix("/")
   unique_agent_name = "#{agent_name}_committer"
 
@@ -141,6 +145,7 @@ def git_commit(agent_name, issue, issue_class, adw_id, logger)
     agent_name: unique_agent_name,
     slash_command: "/git:commit",
     args: ["-m", "\"#{agent_name}: #{issue_type}: implement plan for ##{issue.number}\""],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "sonnet"
   )
@@ -156,11 +161,12 @@ def git_commit(agent_name, issue, issue_class, adw_id, logger)
   [commit_message, nil]
 end
 
-def pull_request(branch_name, issue, adw_id, logger)
+def pull_request(branch_name, issue, issue_number, adw_id, logger)
   request = Adw::AgentTemplateRequest.new(
     agent_name: AGENT_PR_CREATOR,
     slash_command: "/adw:pull_request",
     args: [branch_name, issue.to_json, adw_id],
+    issue_number: issue_number,
     adw_id: adw_id,
     model: "sonnet"
   )
@@ -184,7 +190,7 @@ def main
   adw_id ||= Adw::Utils.make_adw_id
 
   # Set up logger
-  logger = Adw::Utils.setup_logger(adw_id, "adw_plan_build")
+  logger = Adw::Utils.setup_logger(issue_number, adw_id, "adw_plan_build")
   logger.info("ADW ID: #{adw_id}")
 
   # Get repo information
@@ -206,14 +212,14 @@ def main
 
   # Classify the issue
   Adw::Tracker.update(tracker, issue_number, "classifying", logger)
-  issue_command, error = classify_issue(issue, adw_id, logger)
+  issue_command, error = classify_issue(issue, issue_number, adw_id, logger)
   check_error(error, issue_number, "Error classifying issue", logger, tracker)
 
   logger.info("issue_command: #{issue_command}")
   tracker[:classification] = issue_command
 
   # Create git branch
-  branch_name, error = git_branch(issue, issue_command, adw_id, logger)
+  branch_name, error = git_branch(issue, issue_command, issue_number, adw_id, logger)
   check_error(error, issue_number, "Error creating branch", logger, tracker)
 
   logger.info("Working on branch: #{branch_name}")
@@ -223,7 +229,7 @@ def main
   plan_path = Adw::PipelineHelpers.plan_path_for(issue_number)
   Adw::Tracker.update(tracker, issue_number, "planning", logger)
 
-  issue_plan_response = build_plan(issue, issue_command, plan_path, adw_id, logger)
+  issue_plan_response = build_plan(issue, issue_command, plan_path, issue_number, adw_id, logger)
   check_error(issue_plan_response, issue_number, "Error building plan", logger, tracker)
 
   logger.debug("issue_plan_response.output: #{issue_plan_response.output}")
@@ -236,7 +242,7 @@ def main
 
   # Implement the plan
   Adw::Tracker.update(tracker, issue_number, "implementing", logger)
-  implement_response = implement_plan(plan_path, adw_id, logger)
+  implement_response = implement_plan(plan_path, issue_number, adw_id, logger)
   check_error(implement_response, issue_number, "Error implementing solution", logger, tracker)
 
   logger.debug("implement_response.output: #{implement_response.output}")

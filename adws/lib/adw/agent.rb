@@ -37,14 +37,14 @@ module Adw
         env.compact
       end
 
-      def save_prompt(prompt, adw_id, agent_name = "ops")
+      def save_prompt(prompt, issue_number, adw_id, agent_name = "ops")
         match = prompt.match(%r{\A(/\w+)})
         return unless match
 
         command_name = match[1].delete_prefix("/")
 
         project_root = Adw.project_root
-        prompt_dir = File.join(project_root, "adws", "log", adw_id, agent_name, "prompts")
+        prompt_dir = File.join(project_root, ".issues", issue_number.to_s, "logs", adw_id, agent_name, "prompts")
         FileUtils.mkdir_p(prompt_dir)
 
         prompt_file = File.join(prompt_dir, "#{command_name}.txt")
@@ -98,7 +98,7 @@ module Adw
         return AgentPromptResponse.new(output: error_msg, success: false) if error_msg
 
         # Save prompt before execution
-        save_prompt(request.prompt, request.adw_id, request.agent_name)
+        save_prompt(request.prompt, request.issue_number, request.adw_id, request.agent_name)
 
         # Create output directory if needed
         output_dir = File.dirname(request.output_file)
@@ -173,9 +173,9 @@ module Adw
         # Construct prompt from slash command and args
         prompt = "#{request.slash_command} #{request.args.join(' ')}"
 
-        # Create output directory with adw_id at project root
+        # Create output directory with issue_number and adw_id at project root
         project_root = Adw.project_root
-        output_dir = File.join(project_root, "adws", "log", request.adw_id, request.agent_name)
+        output_dir = File.join(project_root, ".issues", request.issue_number.to_s, "logs", request.adw_id, request.agent_name)
         FileUtils.mkdir_p(output_dir)
 
         # Build output file path
@@ -184,6 +184,7 @@ module Adw
         # Create prompt request with specific parameters
         prompt_request = AgentPromptRequest.new(
           prompt: prompt,
+          issue_number: request.issue_number,
           adw_id: request.adw_id,
           agent_name: request.agent_name,
           model: request.model,

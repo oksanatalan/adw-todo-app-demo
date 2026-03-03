@@ -73,13 +73,14 @@ module Adw
       [[], 0, 0]
     end
 
-    def run_tests(adw_id, logger, agent_name: "test_runner")
-      log_dir = File.join(Adw.project_root, "adws", "log", adw_id, agent_name)
+    def run_tests(issue_number, adw_id, logger, agent_name: "test_runner")
+      log_dir = File.join(Adw.project_root, ".issues", issue_number.to_s, "logs", adw_id, agent_name)
 
       request = Adw::AgentTemplateRequest.new(
         agent_name: agent_name,
         slash_command: "/adw:test",
         args: [log_dir],
+        issue_number: issue_number,
         adw_id: adw_id,
         model: "sonnet"
       )
@@ -105,6 +106,7 @@ module Adw
           agent_name: agent_name,
           slash_command: "/adw:resolve_failed_test",
           args: [test_payload],
+          issue_number: issue_number,
           adw_id: adw_id,
           model: "sonnet"
         )
@@ -156,7 +158,7 @@ module Adw
         attempt += 1
         logger.info("\n=== Ejecucion de tests - Intento #{attempt}/#{MAX_TEST_RETRY_ATTEMPTS} ===")
 
-        test_response = run_tests(adw_id, logger, agent_name: test_agent_name)
+        test_response = run_tests(issue_number, adw_id, logger, agent_name: test_agent_name)
 
         unless test_response.success
           logger.error("Error ejecutando tests: #{test_response.output}")

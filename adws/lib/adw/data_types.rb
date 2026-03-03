@@ -95,6 +95,7 @@ module Adw
     transform_keys(&:to_sym)
 
     attribute :prompt, Types::String
+    attribute :issue_number, Types::Integer
     attribute :adw_id, Types::String
     attribute :agent_name, Types::String.default("ops")
     attribute :model, Types::String.default("sonnet")
@@ -116,6 +117,7 @@ module Adw
     attribute :agent_name, Types::String
     attribute :slash_command, Types::String
     attribute :args, Types::Array.of(Types::String).default([].freeze)
+    attribute :issue_number, Types::Integer
     attribute :adw_id, Types::String
     attribute :model, Types::String.default("sonnet")
   end

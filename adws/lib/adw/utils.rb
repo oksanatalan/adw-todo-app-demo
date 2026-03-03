@@ -14,10 +14,10 @@ module Adw
         SecureRandom.uuid[0..7]
       end
 
-      def setup_logger(adw_id, trigger_type = "adw_plan_build")
-        # Create log directory: adws/log/{adw_id}/{trigger_type}/
+      def setup_logger(issue_number, adw_id, trigger_type = "adw_plan_build")
+        # Create log directory: .issues/{issue_number}/logs/{adw_id}/{trigger_type}/
         project_root = Adw.project_root
-        log_dir = File.join(project_root, "adws", "log", adw_id, trigger_type)
+        log_dir = File.join(project_root, ".issues", issue_number.to_s, "logs", adw_id, trigger_type)
         FileUtils.mkdir_p(log_dir)
 
         log_file = File.join(log_dir, "execution.log")
