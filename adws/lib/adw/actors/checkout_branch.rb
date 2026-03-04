@@ -20,9 +20,9 @@ module Adw
           fail!(error: "git checkout failed: #{stderr.strip}")
         end
 
-        _, stderr, status = Open3.capture3("git", "pull", "--rebase", "origin", branch_name)
+        _, stderr, status = Open3.capture3("git", "pull", "origin", branch_name)
         unless status.success?
-          fail!(error: "git pull --rebase failed: #{stderr.strip}")
+          fail!(error: "git pull failed: #{stderr.strip}")
         end
 
         logger.info("Checked out and rebased branch: #{branch_name}")
