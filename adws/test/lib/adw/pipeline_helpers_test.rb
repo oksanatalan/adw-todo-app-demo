@@ -302,11 +302,13 @@ class PipelineHelpersTest < Minitest::Test
   # ── plan_path_for ──
 
   def test_plan_path_for
-    assert_equal ".issues/42/plan.md", plan_path_for(42)
+    expected = File.join(Adw.project_root, ".issues", "42", "plan.md")
+    assert_equal expected, plan_path_for(42)
   end
 
   def test_plan_path_for_string_number
-    assert_equal ".issues/7/plan.md", plan_path_for(7)
+    expected = File.join(Adw.project_root, ".issues", "7", "plan.md")
+    assert_equal expected, plan_path_for(7)
   end
 
   # ── parse_issue_review_results ──

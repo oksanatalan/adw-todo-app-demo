@@ -11,7 +11,7 @@ class BuildPlanTest < Minitest::Test
     @logger = build_logger
     @issue = build_issue(number: @issue_number)
     @tracker = build_tracker
-    @plan_path = ".issues/42/plan.md"
+    @plan_path = File.join(Adw.project_root, ".issues", "42", "plan.md")
 
     Adw::Tracker.stubs(:update)
     Adw::PipelineHelpers.stubs(:plan_path_for).with(@issue_number).returns(@plan_path)

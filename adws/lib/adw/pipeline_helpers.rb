@@ -80,7 +80,7 @@ module Adw
     end
 
     def plan_path_for(issue_number)
-      ".issues/#{issue_number}/plan.md"
+      File.join(Adw.project_root, ".issues", issue_number.to_s, "plan.md")
     end
 
     def post_plan_comment(issue_number, adw_id, agent_name, file_path, title, logger)

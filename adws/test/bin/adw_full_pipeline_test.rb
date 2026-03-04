@@ -23,7 +23,7 @@ class AdwFullPipelineTest < Minitest::Test
     Adw::Tracker.stubs(:update)
     Adw::Tracker.stubs(:save)
     Adw::Tracker.stubs(:set_phase_comment)
-    Adw::PipelineHelpers.stubs(:plan_path_for).returns(".issues/42/plan.md")
+    Adw::PipelineHelpers.stubs(:plan_path_for).returns(File.join(Adw.project_root, ".issues", "42", "plan.md"))
     Adw::PipelineHelpers.stubs(:parse_issue_review_results).returns({
       success: true, screenshots: [], review_issues: []
     })
