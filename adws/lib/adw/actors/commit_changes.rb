@@ -9,11 +9,10 @@ module Adw
 
       input :issue
       input :tracker
-      input :agent_name, default: -> { "pipeline_committer" }
       output :tracker
 
       def call
-        log_actor("Committing changes (agent: #{agent_name})")
+        log_actor("Committing changes (agent: pipeline_committer)")
         Adw::Tracker.update(tracker, issue_number, "committing", logger)
 
         stdout, _, status = Open3.capture3("git", "status", "--porcelain")
@@ -26,7 +25,7 @@ module Adw
         issue_type = issue_class.delete_prefix("/")
 
         request = Adw::AgentTemplateRequest.new(
-          agent_name: agent_name,
+          agent_name: "pipeline_committer",
           slash_command: "/git:commit",
           args: ["-m", "\"#{issue_type}: implement, test, review and document ##{issue.number}\""],
           issue_number: issue_number,

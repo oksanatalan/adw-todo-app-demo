@@ -5,15 +5,14 @@ module Adw
       include Adw::Actors::PipelineInputs
       input :plan_path
       input :tracker
-      input :agent_name, default: -> { "sdlc_implementor" }
       output :tracker
 
       def call
-        log_actor("Implementing plan (agent: #{agent_name})")
+        log_actor("Implementing plan (agent: sdlc_implementor)")
         Adw::Tracker.update(tracker, issue_number, "implementing", logger)
 
         request = Adw::AgentTemplateRequest.new(
-          agent_name: agent_name,
+          agent_name: "sdlc_implementor",
           slash_command: "/implement",
           args: [plan_path],
           issue_number: issue_number,

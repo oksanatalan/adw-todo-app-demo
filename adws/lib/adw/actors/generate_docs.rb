@@ -6,17 +6,16 @@ module Adw
       include Adw::Actors::PipelineInputs
 
       input :tracker
-      input :agent_name, default: -> { "documentation_generator" }
       output :tracker
       output :documentation_skipped, default: -> { false }
 
       def call
-        log_actor("Generating documentation (agent: #{agent_name})")
+        log_actor("Generating documentation (agent: documentation_generator)")
         Adw::Tracker.update(tracker, issue_number, "documenting", logger)
         plan_path = Adw::PipelineHelpers.plan_path_for(issue_number)
 
         request = Adw::AgentTemplateRequest.new(
-          agent_name: agent_name,
+          agent_name: "documentation_generator",
           slash_command: "/adw:document",
           args: [adw_id, plan_path],
           issue_number: issue_number,
@@ -56,7 +55,7 @@ module Adw
 
         doc_comment_id = Adw::GitHub.create_issue_comment(
           issue_number,
-          Adw::PipelineHelpers.format_issue_message(adw_id, agent_name, parts.join("\n"))
+          Adw::PipelineHelpers.format_issue_message(adw_id, "documentation_generator", parts.join("\n"))
         )
         Adw::Tracker.set_phase_comment(tracker, "document", doc_comment_id)
         Adw::Tracker.save(issue_number, tracker)

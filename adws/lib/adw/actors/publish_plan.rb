@@ -5,7 +5,6 @@ module Adw
       include Adw::Actors::PipelineInputs
       input :plan_path
       input :tracker
-      input :agent_name, default: -> { "sdlc_planner" }
       input :title, default: -> { "Implementation Plan" }
       output :tracker
 
@@ -13,7 +12,7 @@ module Adw
         log_actor("Publishing plan to GitHub")
         content = File.read(plan_path)
         body = Adw::PipelineHelpers.format_issue_message(
-          adw_id, agent_name,
+          adw_id, "sdlc_planner",
           "#{title}\n\n<details>\n<summary>#{title}</summary>\n\n#{content}\n</details>"
         )
         comment_id = Adw::GitHub.create_issue_comment(issue_number, body)
