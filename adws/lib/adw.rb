@@ -16,6 +16,7 @@ require_relative "adw/github"
 require_relative "adw/tracker"
 require_relative "adw/agent"
 require_relative "adw/pipeline_helpers"
+require_relative "adw/branch_name"
 require_relative "adw/r2"
 
 # Load actors (pipeline_inputs first; setup_worktree last — depends on sub-actors)

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "open3"
+
 module Adw
   module Actors
     class DestroyWorktree < Actor
@@ -10,7 +12,6 @@ module Adw
 
       def call
         worktree_path = tracker[:worktree_path]
-        branch_name   = worktree_path ? File.basename(worktree_path) : nil
 
         unless worktree_path && Dir.exist?(worktree_path)
           logger.info("[DestroyWorktree] No active worktree found, skipping")
@@ -19,18 +20,11 @@ module Adw
 
         log_actor("Destroying worktree: #{worktree_path}")
 
-        request = Adw::AgentTemplateRequest.new(
-          agent_name: "worktree_destroyer",
-          slash_command: "/env:worktree:destroy",
-          args: [branch_name],
-          issue_number: issue_number,
-          adw_id: adw_id,
-          model: "sonnet"
-        )
+        script = File.join(Adw.project_root, "adws", "bin", "worktree_destroy")
+        _, stderr, status = Open3.capture3(script, worktree_path)
 
-        response = Adw::Agent.execute_template(request)
-        unless response.success
-          logger.warn("[DestroyWorktree] Destroy had issues (non-blocking): #{response.output}")
+        unless status.success?
+          logger.warn("[DestroyWorktree] Destroy had issues (non-blocking): #{stderr.strip}")
         end
 
         tracker.delete(:worktree_path)

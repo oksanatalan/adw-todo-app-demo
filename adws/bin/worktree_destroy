@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: worktree_destroy <worktree_path>
+# Stops all services and removes the git worktree.
+
+WORKTREE_PATH="${1:?Usage: worktree_destroy <worktree_path>}"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+BACKEND_DIR="${WORKTREE_PATH}/backend"
+FRONTEND_DIR="${WORKTREE_PATH}/frontend"
+
+# Read compose project name from .env.local (best-effort)
+COMPOSE_PROJECT_NAME=""
+if [ -f "${WORKTREE_PATH}/.env.local" ]; then
+  COMPOSE_PROJECT_NAME=$(grep '^COMPOSE_PROJECT_NAME=' "${WORKTREE_PATH}/.env.local" | cut -d= -f2 || true)
+fi
+
+# Helper: stop process by PID file
+stop_pid() {
+  local pid_file="$1"
+  local name="$2"
+  if [ -f "${pid_file}" ]; then
+    local pid
+    pid=$(cat "${pid_file}" 2>/dev/null || true)
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+      echo "Stopping ${name} (PID ${pid})..." >&2
+      kill -TERM "${pid}" 2>/dev/null || true
+      for _ in $(seq 1 5); do
+        kill -0 "${pid}" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "${pid}" 2>/dev/null; then
+        echo "Force-killing ${name} (PID ${pid})..." >&2
+        kill -9 "${pid}" 2>/dev/null || true
+      fi
+    fi
+    rm -f "${pid_file}"
+  fi
+}
+
+# 1. Stop frontend
+stop_pid "${FRONTEND_DIR}/tmp/pids/vite.pid" "frontend"
+
+# 2. Stop backend
+stop_pid "${BACKEND_DIR}/tmp/pids/server.pid" "backend"
+
+# 3. Clean sockets
+rm -rf "${BACKEND_DIR}/tmp/sockets/" 2>/dev/null || true
+
+# 4. Stop docker compose
+if [ -n "${COMPOSE_PROJECT_NAME}" ] && [ -d "${BACKEND_DIR}" ]; then
+  echo "Stopping docker compose (project: ${COMPOSE_PROJECT_NAME})..." >&2
+  (cd "${BACKEND_DIR}" && \
+    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose down -v) >&2 2>&1 || true
+fi
+
+# 5. Remove worktree
+echo "Removing git worktree..." >&2
+git -C "${PROJECT_ROOT}" worktree remove "${WORKTREE_PATH}" --force >&2 2>&1 || true
+
+# 6. Prune orphaned refs
+git -C "${PROJECT_ROOT}" worktree prune >&2 2>&1
+
+echo "Worktree destroyed: ${WORKTREE_PATH}" >&2

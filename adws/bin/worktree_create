@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: worktree_create <branch_name>
+# Creates a git worktree in trees/<branch_name> based on origin/main.
+# Outputs the absolute worktree path to stdout.
+
+BRANCH_NAME="${1:?Usage: worktree_create <branch_name>}"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+TREES_DIR="${PROJECT_ROOT}/trees"
+WORKTREE_PATH="${TREES_DIR}/${BRANCH_NAME}"
+
+mkdir -p "${TREES_DIR}"
+
+# Idempotent: if worktree already exists, output its path and exit
+if git -C "${PROJECT_ROOT}" worktree list --porcelain | grep -q "^worktree ${WORKTREE_PATH}$"; then
+  echo "${WORKTREE_PATH}"
+  exit 0
+fi
+
+# Fetch latest main
+git -C "${PROJECT_ROOT}" fetch origin main >&2 2>&1
+
+# Create worktree with new branch based on origin/main
+git -C "${PROJECT_ROOT}" worktree add "${WORKTREE_PATH}" -b "${BRANCH_NAME}" origin/main >&2 2>&1
+
+echo "${WORKTREE_PATH}"

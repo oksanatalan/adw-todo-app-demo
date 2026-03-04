@@ -9,6 +9,8 @@ class AdwFullPipelineTest < Minitest::Test
     @issue_number = "42"
     @adw_id = "abc12345"
     @logger = build_logger
+    @branch_name = "feature-42-abc12345-test-issue"
+    @worktree_path = "/abs/trees/#{@branch_name}"
 
     # Stub external I/O
     Adw::GitHub.stubs(:repo_url).returns("https://github.com/test/repo")
@@ -28,6 +30,20 @@ class AdwFullPipelineTest < Minitest::Test
     Adw::PipelineHelpers.stubs(:format_evidence_comment).returns("evidence comment")
     Adw::PipelineHelpers.stubs(:link_screenshot_urls)
     Adw::R2.stubs(:upload_evidence).returns([])
+
+    # Branch name generation (deterministic Ruby method)
+    Adw::BranchName.stubs(:generate).returns(@branch_name)
+
+    # Worktree script stubs
+    script_base = File.join(Adw.project_root, "adws", "bin")
+    Open3.stubs(:capture3).with("#{script_base}/worktree_create", @branch_name)
+      .returns(["#{@worktree_path}\n", "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("#{script_base}/worktree_configure", @branch_name, @worktree_path)
+      .returns(['{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}', "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("#{script_base}/worktree_setup", @worktree_path)
+      .returns(["", "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("#{script_base}/worktree_start", @worktree_path)
+      .returns(["", "", FakeProcessStatus.new(true)])
 
     # git commands (full_pipeline uses worktree, so chdir: is always present)
     Open3.stubs(:capture3).with("git", "status", "--porcelain", chdir: anything).returns(["", "", FakeProcessStatus.new(true)])
@@ -58,23 +74,19 @@ class AdwFullPipelineTest < Minitest::Test
   end
 
   # Happy path: all stages succeed
-  # Agent calls: 1) classify, 2) branch, 3) create worktree, 4) configure worktree,
-  # 5) start worktree env, 6) build plan, 7) implement, 8) tests, 9) review code,
-  # 10) review issue (non-blocking), 11) docs (non-blocking), 12) PR
+  # Agent calls: 1) classify, 2) build plan, 3) implement, 4) tests, 5) review code,
+  # 6) review issue (non-blocking), 7) docs (non-blocking), 8) PR
+  # Worktree calls handled by script stubs in setup
   def test_happy_path_returns_success
     Adw::Agent.stubs(:execute_template).returns(
       success_response(output: "/feature"),                               # 1. classify
-      success_response(output: "feature/issue-42"),                       # 2. branch
-      success_response(output: "/abs/trees/feature-issue-42"),            # 3. create worktree
-      success_response(output: '{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}'), # 4. configure worktree
-      success_response(output: "services started"),                       # 5. start worktree env
-      success_response(output: "plan created"),                           # 6. build plan
-      success_response(output: "implemented"),                            # 7. implement plan
-      success_response(output: passing_test_json),                       # 8. run tests
-      success_response(output: ok_review_json),                          # 9. review code
-      success_response(output: "visual review ok"),                      # 10. review issue (non-blocking)
-      success_response(output: "docs generated"),                        # 11. generate docs (non-blocking)
-      success_response(output: "https://github.com/test/repo/pull/1")   # 12. PR
+      success_response(output: "plan created"),                           # 2. build plan
+      success_response(output: "implemented"),                            # 3. implement plan
+      success_response(output: passing_test_json),                       # 4. run tests
+      success_response(output: ok_review_json),                          # 5. review code
+      success_response(output: "visual review ok"),                      # 6. review issue (non-blocking)
+      success_response(output: "docs generated"),                        # 7. generate docs (non-blocking)
+      success_response(output: "https://github.com/test/repo/pull/1")   # 8. PR
     )
 
     result = Adw::Workflows::FullPipeline.result(
@@ -124,20 +136,16 @@ class AdwFullPipelineTest < Minitest::Test
 
     Adw::Agent.stubs(:execute_template).returns(
       success_response(output: "/feature"),          # 1. classify
-      success_response(output: "feature/issue-42"),  # 2. branch
-      success_response(output: "/abs/trees/feat"),   # 3. create worktree
-      success_response(output: '{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}'), # 4. configure worktree
-      success_response(output: "services started"),  # 5. start worktree env
-      success_response(output: "plan created"),      # 6. build plan
-      success_response(output: "implemented"),       # 7. implement plan
+      success_response(output: "plan created"),      # 2. build plan
+      success_response(output: "implemented"),       # 3. implement plan
       # Test attempts (MAX_TEST_RETRY_ATTEMPTS = 4) with resolvers in between
-      success_response(output: failing_test_json),  # 8. test attempt 1
+      success_response(output: failing_test_json),  # 4. test attempt 1
+      success_response(output: "resolved"),          # 5. resolver
+      success_response(output: failing_test_json),  # 6. test attempt 2
+      success_response(output: "resolved"),          # 7. resolver
+      success_response(output: failing_test_json),  # 8. test attempt 3
       success_response(output: "resolved"),          # 9. resolver
-      success_response(output: failing_test_json),  # 10. test attempt 2
-      success_response(output: "resolved"),          # 11. resolver
-      success_response(output: failing_test_json),  # 12. test attempt 3
-      success_response(output: "resolved"),          # 13. resolver
-      success_response(output: failing_test_json)   # 14. test attempt 4
+      success_response(output: failing_test_json)   # 10. test attempt 4
     )
 
     result = Adw::Workflows::FullPipeline.result(
@@ -162,18 +170,14 @@ class AdwFullPipelineTest < Minitest::Test
 
     Adw::Agent.stubs(:execute_template).returns(
       success_response(output: "/feature"),           # 1. classify
-      success_response(output: "feature/issue-42"),   # 2. branch
-      success_response(output: "/abs/trees/feat"),    # 3. create worktree
-      success_response(output: '{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}'), # 4. configure worktree
-      success_response(output: "services started"),   # 5. start worktree env
-      success_response(output: "plan created"),       # 6. build plan
-      success_response(output: "implemented"),        # 7. implement plan
-      success_response(output: passing_test_json),   # 8. tests pass
-      success_response(output: critical_review_json), # 9. review: critical
-      success_response(output: "resolver attempt"),   # 10. fix attempt 1
-      success_response(output: critical_review_json), # 11. recheck: still critical
-      success_response(output: "resolver attempt"),   # 12. fix attempt 2
-      success_response(output: critical_review_json) # 13. recheck: still critical
+      success_response(output: "plan created"),       # 2. build plan
+      success_response(output: "implemented"),        # 3. implement plan
+      success_response(output: passing_test_json),   # 4. tests pass
+      success_response(output: critical_review_json), # 5. review: critical
+      success_response(output: "resolver attempt"),   # 6. fix attempt 1
+      success_response(output: critical_review_json), # 7. recheck: still critical
+      success_response(output: "resolver attempt"),   # 8. fix attempt 2
+      success_response(output: critical_review_json) # 9. recheck: still critical
     )
 
     result = Adw::Workflows::FullPipeline.result(
@@ -190,17 +194,13 @@ class AdwFullPipelineTest < Minitest::Test
   def test_fails_when_pr_creation_fails
     Adw::Agent.stubs(:execute_template).returns(
       success_response(output: "/feature"),          # 1. classify
-      success_response(output: "feature/issue-42"),  # 2. branch
-      success_response(output: "/abs/trees/feat"),   # 3. create worktree
-      success_response(output: '{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}'), # 4. configure worktree
-      success_response(output: "services started"),  # 5. start worktree env
-      success_response(output: "plan created"),      # 6. build plan
-      success_response(output: "implemented"),       # 7. implement plan
-      success_response(output: passing_test_json),  # 8. tests pass
-      success_response(output: ok_review_json),     # 9. review ok
-      success_response(output: "visual ok"),         # 10. visual review (non-blocking)
-      success_response(output: "docs ok"),           # 11. docs (non-blocking)
-      failure_response(output: "gh error")           # 12. PR fails
+      success_response(output: "plan created"),      # 2. build plan
+      success_response(output: "implemented"),       # 3. implement plan
+      success_response(output: passing_test_json),  # 4. tests pass
+      success_response(output: ok_review_json),     # 5. review ok
+      success_response(output: "visual ok"),         # 6. visual review (non-blocking)
+      success_response(output: "docs ok"),           # 7. docs (non-blocking)
+      failure_response(output: "gh error")           # 8. PR fails
     )
 
     result = Adw::Workflows::FullPipeline.result(
@@ -217,17 +217,13 @@ class AdwFullPipelineTest < Minitest::Test
   def test_visual_review_failure_is_non_blocking
     Adw::Agent.stubs(:execute_template).returns(
       success_response(output: "/feature"),                             # 1. classify
-      success_response(output: "feature/issue-42"),                     # 2. branch
-      success_response(output: "/abs/trees/feat"),                      # 3. create worktree
-      success_response(output: '{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}'), # 4. configure worktree
-      success_response(output: "services started"),                     # 5. start worktree env
-      success_response(output: "plan created"),                         # 6. build plan
-      success_response(output: "implemented"),                          # 7. implement plan
-      success_response(output: passing_test_json),                     # 8. tests pass
-      success_response(output: ok_review_json),                        # 9. review ok
-      failure_response(output: "playwright error"),                     # 10. visual review fails (non-blocking)
-      success_response(output: "docs ok"),                             # 11. docs (non-blocking)
-      success_response(output: "https://github.com/test/repo/pull/1") # 12. PR
+      success_response(output: "plan created"),                         # 2. build plan
+      success_response(output: "implemented"),                          # 3. implement plan
+      success_response(output: passing_test_json),                     # 4. tests pass
+      success_response(output: ok_review_json),                        # 5. review ok
+      failure_response(output: "playwright error"),                     # 6. visual review fails (non-blocking)
+      success_response(output: "docs ok"),                             # 7. docs (non-blocking)
+      success_response(output: "https://github.com/test/repo/pull/1") # 8. PR
     )
 
     result = Adw::Workflows::FullPipeline.result(

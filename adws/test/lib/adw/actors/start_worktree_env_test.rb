@@ -16,7 +16,7 @@ class StartWorktreeEnvTest < Minitest::Test
   def test_updates_tracker_to_setting_up
     Adw::Tracker.expects(:update).with(@tracker, @issue_number, "setting_up", @logger)
     Adw::Tracker.stubs(:save)
-    Adw::Agent.stubs(:execute_template).returns(build_agent_response(output: "started", success: true))
+    Open3.stubs(:capture3).returns(["", "", mock_success_status])
 
     result = Adw::Actors::StartWorktreeEnv.result(
       issue_number: @issue_number,
@@ -32,7 +32,7 @@ class StartWorktreeEnvTest < Minitest::Test
   def test_service_failure_is_non_blocking
     Adw::Tracker.stubs(:update)
     Adw::Tracker.stubs(:save)
-    Adw::Agent.stubs(:execute_template).returns(build_agent_response(output: "docker error", success: false))
+    Open3.stubs(:capture3).returns(["", "docker error", mock_failure_status])
 
     result = Adw::Actors::StartWorktreeEnv.result(
       issue_number: @issue_number,
@@ -43,5 +43,19 @@ class StartWorktreeEnvTest < Minitest::Test
     )
 
     assert result.success?
+  end
+
+  private
+
+  def mock_success_status
+    status = mock("status")
+    status.stubs(:success?).returns(true)
+    status
+  end
+
+  def mock_failure_status
+    status = mock("status")
+    status.stubs(:success?).returns(false)
+    status
   end
 end

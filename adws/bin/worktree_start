@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: worktree_start <worktree_path>
+# Starts all services (infra, backend, frontend) for a worktree.
+# Reads configuration from .env.local in the worktree.
+
+WORKTREE_PATH="${1:?Usage: worktree_start <worktree_path>}"
+BACKEND_DIR="${WORKTREE_PATH}/backend"
+FRONTEND_DIR="${WORKTREE_PATH}/frontend"
+ENV_FILE="${WORKTREE_PATH}/.env.local"
+
+if [ ! -f "${ENV_FILE}" ]; then
+  echo "ERROR: .env.local not found at ${ENV_FILE}" >&2
+  exit 1
+fi
+
+# Source .env.local
+set -a
+# shellcheck disable=SC1090
+source "${ENV_FILE}"
+set +a
+
+# 1. Start postgres via docker compose
+echo "Starting docker compose (project: ${COMPOSE_PROJECT_NAME})..." >&2
+(cd "${BACKEND_DIR}" && \
+  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" \
+  POSTGRES_PORT="${POSTGRES_PORT}" \
+  docker compose up -d) >&2 2>&1
+
+# 2. Wait for postgres (max 30s)
+echo "Waiting for postgres on port ${POSTGRES_PORT}..." >&2
+RETRIES=30
+until pg_isready -h localhost -p "${POSTGRES_PORT}" -q 2>/dev/null; do
+  RETRIES=$((RETRIES - 1))
+  if [ "${RETRIES}" -le 0 ]; then
+    echo "ERROR: Postgres not ready after 30s on port ${POSTGRES_PORT}" >&2
+    exit 1
+  fi
+  sleep 1
+done
+echo "Postgres ready." >&2
+
+# 3. Prepare database
+echo "Preparing database..." >&2
+(cd "${BACKEND_DIR}" && DATABASE_URL="${DATABASE_URL}" bin/rails db:prepare) >&2 2>&1
+
+# 4. Start backend in background
+echo "Starting backend on port ${PORT}..." >&2
+mkdir -p "${BACKEND_DIR}/log" "${BACKEND_DIR}/tmp/pids"
+(cd "${BACKEND_DIR}" && \
+  nohup env PORT="${PORT}" DATABASE_URL="${DATABASE_URL}" bin/dev \
+  > "${BACKEND_DIR}/log/adw_dev.log" 2>&1 &)
+
+# 5. Start frontend in background
+echo "Starting frontend on port ${VITE_PORT}..." >&2
+mkdir -p "${FRONTEND_DIR}/log" "${FRONTEND_DIR}/tmp/pids"
+(cd "${FRONTEND_DIR}" && \
+  nohup bin/dev -- --port "${VITE_PORT}" \
+  > "${FRONTEND_DIR}/log/adw_dev.log" 2>&1 &)
+
+echo "Services started: backend=http://localhost:${PORT} frontend=http://localhost:${VITE_PORT}" >&2

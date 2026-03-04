@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: worktree_setup <worktree_path>
+# Installs backend (bundle) and frontend (npm) dependencies.
+
+WORKTREE_PATH="${1:?Usage: worktree_setup <worktree_path>}"
+
+echo "Installing backend dependencies..." >&2
+(cd "${WORKTREE_PATH}/backend" && bundle install) >&2 2>&1
+
+echo "Installing frontend dependencies..." >&2
+(cd "${WORKTREE_PATH}/frontend" && npm install) >&2 2>&1
+
+echo "Dependencies installed successfully" >&2

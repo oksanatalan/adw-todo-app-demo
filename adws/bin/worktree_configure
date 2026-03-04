@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: worktree_configure <branch_name> <worktree_path>
+# Calculates deterministic ports from branch name, writes .env.local.
+# Outputs JSON with port assignments to stdout.
+
+BRANCH_NAME="${1:?Usage: worktree_configure <branch_name> <worktree_path>}"
+WORKTREE_PATH="${2:?Usage: worktree_configure <branch_name> <worktree_path>}"
+
+# Deterministic port calculation (SHA256-based)
+HASH=$(echo -n "${BRANCH_NAME}" | openssl dgst -sha256 | awk '{print $NF}' | head -c 8)
+OFFSET=$(( 16#${HASH} % 900 ))
+POSTGRES_PORT=$(( 5400 + OFFSET ))
+BACKEND_PORT=$(( 8000 + OFFSET ))
+FRONTEND_PORT=$(( 9000 + OFFSET ))
+COMPOSE_PROJECT="adw-$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-63)"
+DATABASE_URL="postgresql://postgres:password@localhost:${POSTGRES_PORT}/app_development"
+
+# Write .env.local
+cat > "${WORKTREE_PATH}/.env.local" <<ENVEOF
+# Worktree: ${BRANCH_NAME}
+# Generated automatically by ADW -- DO NOT EDIT
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT}
+POSTGRES_PORT=${POSTGRES_PORT}
+DATABASE_URL=${DATABASE_URL}
+PORT=${BACKEND_PORT}
+VITE_PORT=${FRONTEND_PORT}
+VITE_API_BASE_URL=http://localhost:${BACKEND_PORT}
+ENVEOF
+
+echo "Wrote ${WORKTREE_PATH}/.env.local" >&2
+
+# Output JSON for callers to parse
+echo "{\"postgres_port\":${POSTGRES_PORT},\"backend_port\":${BACKEND_PORT},\"frontend_port\":${FRONTEND_PORT},\"compose_project\":\"${COMPOSE_PROJECT}\"}"

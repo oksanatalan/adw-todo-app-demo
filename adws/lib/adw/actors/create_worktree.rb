@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "open3"
-require "fileutils"
 
 module Adw
   module Actors
@@ -15,50 +14,23 @@ module Adw
       output :branch_name
       output :worktree_path
 
-      TREES_DIR = "trees"
-
       def call
         log_actor("Generating branch name and creating worktree")
         Adw::Tracker.update(tracker, issue_number, "creating_worktree", logger)
 
         issue_type = issue_command.delete_prefix("/")
+        name = Adw::BranchName.generate(issue_type, issue_number, adw_id, issue.title)
+        logger.info("Generated branch name: #{name}")
 
-        branch_request = Adw::AgentTemplateRequest.new(
-          agent_name: "branch_generator",
-          slash_command: "/adw:generate_branch_name",
-          args: [issue_type, adw_id, issue.to_json],
-          issue_number: issue_number,
-          adw_id: adw_id,
-          model: "sonnet"
-        )
+        script = File.join(Adw.project_root, "adws", "bin", "worktree_create")
+        stdout, stderr, status = Open3.capture3(script, name)
 
-        branch_response = Adw::Agent.execute_template(branch_request)
-
-        unless branch_response.success
+        unless status.success?
           Adw::Tracker.update(tracker, issue_number, "error", logger)
-          fail!(error: "Branch name generation failed: #{branch_response.output}")
+          fail!(error: "Worktree creation failed: #{stderr.strip}")
         end
 
-        name = branch_response.output.strip
-        path = File.join(Adw.project_root, TREES_DIR, name)
-        FileUtils.mkdir_p(File.join(Adw.project_root, TREES_DIR))
-
-        worktree_request = Adw::AgentTemplateRequest.new(
-          agent_name: "worktree_creator",
-          slash_command: "/env:worktree:create",
-          args: [name],
-          issue_number: issue_number,
-          adw_id: adw_id,
-          model: "haiku"
-        )
-
-        worktree_response = Adw::Agent.execute_template(worktree_request)
-
-        unless worktree_response.success
-          Adw::Tracker.update(tracker, issue_number, "error", logger)
-          fail!(error: "Worktree creation failed: #{worktree_response.output}")
-        end
-
+        path = stdout.strip
         tracker[:branch_name] = name
         tracker[:worktree_path] = path
         self.branch_name = name
