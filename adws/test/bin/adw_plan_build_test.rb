@@ -22,7 +22,7 @@ class AdwPlanBuildTest < Minitest::Test
     Adw::Tracker.stubs(:save)
     Adw::Tracker.stubs(:set_phase_comment)
     Adw::PipelineHelpers.stubs(:plan_path_for).returns(".issues/42/plan.md")
-    Open3.stubs(:capture3).with("git", "checkout", "-b", anything).returns(["", "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("git", "checkout", anything).returns(["", "", FakeProcessStatus.new(true)])
     Open3.stubs(:capture3).with("git", "push", "--set-upstream", "origin", anything).returns(["", "", FakeProcessStatus.new(true)])
     Open3.stubs(:capture3).with("git", "rev-parse", "--abbrev-ref", "HEAD").returns(["main\n", "", FakeProcessStatus.new(true)])
   end

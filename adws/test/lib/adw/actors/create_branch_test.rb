@@ -17,6 +17,7 @@ class CreateBranchTest < Minitest::Test
 
   def test_returns_branch_name_and_updates_tracker_on_success
     Adw::Agent.stubs(:execute_template).returns(build_agent_response(output: "feature/my-branch-42", success: true))
+    Open3.stubs(:capture3).with("git", "checkout", "feature/my-branch-42").returns(["", "", stub(success?: true)])
 
     result = Adw::Actors::CreateBranch.result(
       issue_number: @issue_number,
@@ -46,5 +47,22 @@ class CreateBranchTest < Minitest::Test
 
     refute result.success?
     assert_match(/Branch creation failed/, result.error)
+  end
+
+  def test_fails_when_git_checkout_fails
+    Adw::Agent.stubs(:execute_template).returns(build_agent_response(output: "feature/my-branch-42", success: true))
+    Open3.stubs(:capture3).with("git", "checkout", "feature/my-branch-42").returns(["", "error: pathspec not found", stub(success?: false)])
+
+    result = Adw::Actors::CreateBranch.result(
+      issue_number: @issue_number,
+      adw_id: @adw_id,
+      logger: @logger,
+      issue: @issue,
+      issue_command: "/feature",
+      tracker: @tracker
+    )
+
+    refute result.success?
+    assert_match(/Git checkout failed/, result.error)
   end
 end

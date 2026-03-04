@@ -29,11 +29,9 @@ class AdwFullPipelineTest < Minitest::Test
     Adw::PipelineHelpers.stubs(:link_screenshot_urls)
     Adw::R2.stubs(:upload_evidence).returns([])
 
-    # git commands
-    Open3.stubs(:capture3).with("git", "checkout", "-b", anything).returns(["", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("git", "push", "--set-upstream", "origin", anything).returns(["", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("git", "rev-parse", "--abbrev-ref", "HEAD").returns(["main\n", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("git", "status", "--porcelain").returns(["", "", FakeProcessStatus.new(true)])
+    # git commands (full_pipeline uses worktree, so chdir: is always present)
+    Open3.stubs(:capture3).with("git", "status", "--porcelain", chdir: anything).returns(["", "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("git", "push", "origin", anything, chdir: anything).returns(["", "", FakeProcessStatus.new(true)])
   end
 
   def success_response(output: "done")

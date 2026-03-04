@@ -10,7 +10,6 @@ module Adw
       play Adw::Actors::InitializeTracker,
            Adw::Actors::FetchIssue,
            Adw::Actors::ClassifyIssue,
-           Adw::Actors::CreateBranch,
            Adw::Actors::SetupWorktree,
            Adw::Actors::BuildPlan,
            Adw::Actors::PublishPlan,

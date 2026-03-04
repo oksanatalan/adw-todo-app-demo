@@ -17,7 +17,8 @@ module Adw
           args: [plan_path],
           issue_number: issue_number,
           adw_id: adw_id,
-          model: "sonnet"
+          model: "sonnet",
+          cwd: worktree_path
         )
 
         response = Adw::Agent.execute_template(request)

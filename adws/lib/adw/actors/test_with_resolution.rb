@@ -38,7 +38,8 @@ module Adw
             args: [log_dir],
             issue_number: issue_number,
             adw_id: adw_id,
-            model: "sonnet"
+            model: "sonnet",
+            cwd: worktree_path
           )
 
           test_response = Adw::Agent.execute_template(request)
@@ -90,7 +91,8 @@ module Adw
             args: [test_payload],
             issue_number: issue_number,
             adw_id: adw_id,
-            model: "sonnet"
+            model: "sonnet",
+            cwd: worktree_path
           )
 
           if verbose_comments

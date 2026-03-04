@@ -15,7 +15,8 @@ module Adw
         log_actor("Committing changes (agent: pipeline_committer)")
         Adw::Tracker.update(tracker, issue_number, "committing", logger)
 
-        stdout, _, status = Open3.capture3("git", "status", "--porcelain")
+        git_opts = worktree_path ? {chdir: worktree_path} : {}
+        stdout, _, status = Open3.capture3("git", "status", "--porcelain", **git_opts)
         if status.success? && stdout.strip.empty?
           logger.info("No pending changes to commit")
           return
@@ -30,7 +31,8 @@ module Adw
           args: ["-m", "\"#{issue_type}: implement, test, review and document ##{issue.number}\""],
           issue_number: issue_number,
           adw_id: adw_id,
-          model: "sonnet"
+          model: "sonnet",
+          cwd: worktree_path
         )
 
         response = Adw::Agent.execute_template(request)

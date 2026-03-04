@@ -20,7 +20,8 @@ module Adw
           args: [path, "#{issue.title}: #{issue.body}"],
           issue_number: issue_number,
           adw_id: adw_id,
-          model: "opus"
+          model: "opus",
+          cwd: worktree_path
         )
 
         response = Adw::Agent.execute_template(request)

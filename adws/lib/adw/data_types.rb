@@ -101,6 +101,7 @@ module Adw
     attribute :model, Types::String.default("sonnet")
     attribute :dangerously_skip_permissions, Types::Bool.default(false)
     attribute :output_file, Types::String
+    attribute :cwd, Types::String.optional.default(nil)
   end
 
   class AgentPromptResponse < Dry::Struct
@@ -120,6 +121,7 @@ module Adw
     attribute :issue_number, Types::Coercible::Integer
     attribute :adw_id, Types::String
     attribute :model, Types::String.default("sonnet")
+    attribute :cwd, Types::String.optional.default(nil)
   end
 
   class TestResult < Dry::Struct

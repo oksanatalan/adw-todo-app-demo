@@ -7,8 +7,10 @@ module Adw
       input :adw_id
       input :logger
       input :tracker
-      input :branch_name
+      input :issue
+      input :issue_command
       output :tracker
+      output :branch_name
       output :worktree_path
 
       play Adw::Actors::CreateWorktree,

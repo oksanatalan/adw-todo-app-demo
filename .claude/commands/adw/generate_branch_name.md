@@ -34,7 +34,7 @@ ISSUE: $3 - JSON de la issue de Github
 ### Paso 2: Crear la rama
 - Ejecuta `git checkout main` para cambiar a la rama principal.
 - Ejecuta `git pull` para obtener los ultimos cambios.
-- Ejecuta `git checkout -b <nombre_rama>` para crear y cambiar a la nueva rama.
+- Ejecuta `git branch <nombre_rama>` para crear la rama sin cambiar a ella.
 
 ## Reporte
 

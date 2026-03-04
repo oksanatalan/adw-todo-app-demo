@@ -17,7 +17,8 @@ module Adw
           fail!(error: "No branch_name in tracker, cannot push")
         end
 
-        _stdout, stderr, status = Open3.capture3("git", "push", "origin", branch_name)
+        git_opts = worktree_path ? {chdir: worktree_path} : {}
+        _stdout, stderr, status = Open3.capture3("git", "push", "origin", branch_name, **git_opts)
         unless status.success?
           Adw::Tracker.update(tracker, issue_number, "error", logger)
           fail!(error: "Git push failed: #{stderr.strip}")
