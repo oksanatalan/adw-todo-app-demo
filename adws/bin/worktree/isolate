@@ -7,11 +7,12 @@ set -euo pipefail
 
 WORKTREE_PATH="$(realpath "${1:?Usage: worktree/isolate <worktree_path>}")"
 
-# Copy shared .env from main repo
+# Copy shared adws/.env from main repo
 MAIN_REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
-if [[ -f "${MAIN_REPO}/.env" ]]; then
-  cp "${MAIN_REPO}/.env" "${WORKTREE_PATH}/.env"
-  echo "Copied ${MAIN_REPO}/.env → ${WORKTREE_PATH}/.env" >&2
+if [[ -f "${MAIN_REPO}/adws/.env" ]]; then
+  mkdir -p "${WORKTREE_PATH}/adws"
+  cp "${MAIN_REPO}/adws/.env" "${WORKTREE_PATH}/adws/.env"
+  echo "Copied ${MAIN_REPO}/adws/.env → ${WORKTREE_PATH}/adws/.env" >&2
 fi
 
 # Derive branch name from git
