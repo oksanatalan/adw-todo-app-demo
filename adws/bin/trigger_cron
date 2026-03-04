@@ -19,259 +19,272 @@ require "rufus-scheduler"
 require "set"
 require_relative "../lib/adw"
 
-# Get repository URL from git remote
-begin
-  GITHUB_REPO_URL = Adw::GitHub.repo_url
-  REPO_PATH = Adw::GitHub.extract_repo_path(GITHUB_REPO_URL)
-rescue => e
-  warn "ERROR: #{e}"
-  exit 1
-end
+module Adw
+  module Pipelines
+    class TriggerCron
+      attr_reader :repo_path, :processed_issues, :issue_last_comment
+      attr_accessor :shutdown_requested
 
-# Track processed issues
-processed_issues = Set.new
-# Track issues with their last processed comment ID
-issue_last_comment = {}
+      def initialize(repo_path)
+        @repo_path = repo_path
+        @processed_issues = Set.new
+        @issue_last_comment = {}
+        @shutdown_requested = false
+      end
 
-# Graceful shutdown flag
-shutdown_requested = false
+      def should_process_issue?(issue_number)
+        comments = Adw::GitHub.fetch_issue_comments(repo_path, issue_number)
 
-Signal.trap("INT") do
-  puts "\nINFO: Received SIGINT, initiating graceful shutdown..."
-  shutdown_requested = true
-end
+        # If no comments, it's a new issue - process it
+        if comments.empty?
+          puts "INFO: Issue ##{issue_number} has no comments - marking for processing"
+          return true
+        end
 
-Signal.trap("TERM") do
-  puts "\nINFO: Received SIGTERM, initiating graceful shutdown..."
-  shutdown_requested = true
-end
+        # Get the latest comment
+        latest_comment = comments.last
+        comment_body = latest_comment.fetch("body", "").downcase.strip
+        comment_id = latest_comment.fetch("id", nil)
 
-def should_process_issue?(issue_number, issue_last_comment)
-  comments = Adw::GitHub.fetch_issue_comments(REPO_PATH, issue_number)
+        # Check if we've already processed this comment
+        last_processed = issue_last_comment[issue_number]
+        return false if last_processed == comment_id
 
-  # If no comments, it's a new issue - process it
-  if comments.empty?
-    puts "INFO: Issue ##{issue_number} has no comments - marking for processing"
-    return true
+        # Check if latest comment is exactly 'adw'
+        if comment_body == "adw"
+          puts "INFO: Issue ##{issue_number} - latest comment is 'adw' - marking for processing"
+          issue_last_comment[issue_number] = comment_id
+          return true
+        end
+
+        false
+      end
+
+      def check_patch_trigger(issue_number)
+        comments = Adw::GitHub.fetch_issue_comments(repo_path, issue_number)
+        return nil if comments.empty?
+
+        latest = comments.last
+        comment_body = latest.fetch("body", "")
+        comment_id = latest.fetch("id", nil)
+
+        # Skip if we already processed this comment
+        return nil if issue_last_comment[issue_number] == comment_id
+
+        # Skip bot comments
+        return nil if Adw::PipelineHelpers.bot_comment?(comment_body)
+
+        # Skip tracker comments
+        return nil if comment_body.include?(Adw::Tracker::COMMENT_MARKER)
+
+        # New human comment on a done issue → trigger patch
+        puts "INFO: Issue ##{issue_number} (adw/done) - new human comment detected"
+        issue_last_comment[issue_number] = comment_id
+
+        # Return the human comment body directly (avoids a second API call)
+        comment_body
+      end
+
+      def trigger_patch_workflow(issue_number, comment_body)
+        script_path = File.join(__dir__, "adw_patch")
+
+        puts "INFO: Triggering ADW patch workflow for issue ##{issue_number}"
+
+        pid = Process.spawn(
+          RbConfig.ruby, script_path, issue_number.to_s, comment_body,
+          out: $stdout,
+          err: $stderr
+        )
+        Process.detach(pid)
+
+        puts "INFO: Successfully triggered patch workflow for issue ##{issue_number} (PID: #{pid})"
+        true
+      rescue => e
+        warn "ERROR: Exception while triggering patch workflow for issue ##{issue_number}: #{e}"
+        false
+      end
+
+      def trigger_workflow(issue_number)
+        script_path = File.join(__dir__, "adw_full_pipeline")
+
+        puts "INFO: Triggering ADW workflow for issue ##{issue_number}"
+
+        pid = Process.spawn(
+          RbConfig.ruby, script_path, issue_number.to_s,
+          out: $stdout,
+          err: $stderr
+        )
+        Process.detach(pid)
+
+        puts "INFO: Successfully triggered workflow for issue ##{issue_number} (PID: #{pid})"
+        true
+      rescue => e
+        warn "ERROR: Exception while triggering workflow for issue ##{issue_number}: #{e}"
+        false
+      end
+
+      def check_and_process_issues
+        return if shutdown_requested
+
+        start_time = Time.now
+        puts "INFO: Starting issue check cycle"
+
+        begin
+          # Fetch all open issues
+          issues = Adw::GitHub.fetch_open_issues(repo_path)
+
+          if issues.empty?
+            puts "INFO: No open issues found"
+            return
+          end
+
+          # Track newly qualified issues
+          new_qualifying_issues = []
+          patch_comments = {}
+
+          # Check each issue
+          issues.each do |issue|
+            issue_number = issue.number
+            next unless issue_number
+
+            adw_labels = issue.labels.select { |l| l.name.start_with?("adw/") }
+
+            # Case 1: Issue with adw/done → check for new human comment to trigger patch
+            # NOTE: Must be checked BEFORE processed_issues filter, since the issue may have
+            # been processed in this session (full pipeline) but now needs a patch.
+            if adw_labels.any? { |l| l.name == "adw/done" }
+              comment_body = check_patch_trigger(issue_number)
+              if comment_body
+                patch_comments[issue_number] = comment_body
+              end
+              next
+            end
+
+            # For full pipeline only: skip issues already processed in this session
+            next if processed_issues.include?(issue_number)
+
+            # Case 2: Issue with other adw/ labels (not error) → skip (in progress)
+            if adw_labels.any?
+              non_error_labels = adw_labels.reject { |l| l.name == "adw/error" }
+              if non_error_labels.any?
+                puts "INFO: Skipping issue ##{issue_number} - ADW active (#{non_error_labels.map(&:name).join(', ')})"
+                next
+              end
+            end
+
+            # Case 3: Issue without adw labels or with adw/error → full pipeline
+            if should_process_issue?(issue_number)
+              new_qualifying_issues << issue_number
+            end
+          end
+
+          # Process patch issues
+          if patch_comments.any?
+            puts "INFO: Found #{patch_comments.length} issues needing patch: #{patch_comments.keys}"
+
+            patch_comments.each do |issue_number, comment_body|
+              break if shutdown_requested
+
+              unless trigger_patch_workflow(issue_number, comment_body)
+                puts "WARNING: Failed to trigger patch for issue ##{issue_number}, will retry in next cycle"
+              end
+            end
+          end
+
+          # Process full pipeline issues
+          if new_qualifying_issues.any?
+            puts "INFO: Found #{new_qualifying_issues.length} new qualifying issues: #{new_qualifying_issues}"
+
+            new_qualifying_issues.each do |issue_number|
+              break if shutdown_requested
+
+              if trigger_workflow(issue_number)
+                processed_issues.add(issue_number)
+              else
+                puts "WARNING: Failed to process issue ##{issue_number}, will retry in next cycle"
+              end
+            end
+          end
+
+          if new_qualifying_issues.empty? && patch_comments.empty?
+            puts "INFO: No new qualifying issues found"
+          end
+
+          cycle_time = Time.now - start_time
+          puts "INFO: Check cycle completed in #{cycle_time.round(2)} seconds"
+          puts "INFO: Total processed issues in session: #{processed_issues.length}"
+        rescue => e
+          warn "ERROR: Error during check cycle: #{e}"
+          warn e.backtrace.join("\n")
+        end
+      end
+    end
   end
-
-  # Get the latest comment
-  latest_comment = comments.last
-  comment_body = latest_comment.fetch("body", "").downcase.strip
-  comment_id = latest_comment.fetch("id", nil)
-
-  # Check if we've already processed this comment
-  last_processed = issue_last_comment[issue_number]
-  return false if last_processed == comment_id
-
-  # Check if latest comment is exactly 'adw'
-  if comment_body == "adw"
-    puts "INFO: Issue ##{issue_number} - latest comment is 'adw' - marking for processing"
-    issue_last_comment[issue_number] = comment_id
-    return true
-  end
-
-  false
 end
 
-def check_patch_trigger(issue_number, issue_last_comment)
-  comments = Adw::GitHub.fetch_issue_comments(REPO_PATH, issue_number)
-  return nil if comments.empty?
-
-  latest = comments.last
-  comment_body = latest.fetch("body", "")
-  comment_id = latest.fetch("id", nil)
-
-  # Skip if we already processed this comment
-  return nil if issue_last_comment[issue_number] == comment_id
-
-  # Skip bot comments
-  return nil if Adw::PipelineHelpers.bot_comment?(comment_body)
-
-  # Skip tracker comments
-  return nil if comment_body.include?(Adw::Tracker::COMMENT_MARKER)
-
-  # New human comment on a done issue → trigger patch
-  puts "INFO: Issue ##{issue_number} (adw/done) - new human comment detected"
-  issue_last_comment[issue_number] = comment_id
-
-  # Return the human comment body directly (avoids a second API call)
-  comment_body
-end
-
-def trigger_patch_workflow(issue_number, comment_body)
-  script_path = File.join(__dir__, "adw_patch")
-
-  puts "INFO: Triggering ADW patch workflow for issue ##{issue_number}"
-
-  pid = Process.spawn(
-    RbConfig.ruby, script_path, issue_number.to_s, comment_body,
-    out: $stdout,
-    err: $stderr
-  )
-  Process.detach(pid)
-
-  puts "INFO: Successfully triggered patch workflow for issue ##{issue_number} (PID: #{pid})"
-  true
-rescue => e
-  warn "ERROR: Exception while triggering patch workflow for issue ##{issue_number}: #{e}"
-  false
-end
-
-def trigger_workflow(issue_number)
-  script_path = File.join(__dir__, "adw_full_pipeline")
-
-  puts "INFO: Triggering ADW workflow for issue ##{issue_number}"
-
-  pid = Process.spawn(
-    RbConfig.ruby, script_path, issue_number.to_s,
-    out: $stdout,
-    err: $stderr
-  )
-  Process.detach(pid)
-
-  puts "INFO: Successfully triggered workflow for issue ##{issue_number} (PID: #{pid})"
-  true
-rescue => e
-  warn "ERROR: Exception while triggering workflow for issue ##{issue_number}: #{e}"
-  false
-end
-
-def check_and_process_issues(processed_issues, issue_last_comment, shutdown_requested)
-  return if shutdown_requested
-
-  start_time = Time.now
-  puts "INFO: Starting issue check cycle"
-
+if __FILE__ == $0
+  # Get repository URL from git remote
   begin
-    # Fetch all open issues
-    issues = Adw::GitHub.fetch_open_issues(REPO_PATH)
-
-    if issues.empty?
-      puts "INFO: No open issues found"
-      return
-    end
-
-    # Track newly qualified issues
-    new_qualifying_issues = []
-    patch_comments = {}
-
-    # Check each issue
-    issues.each do |issue|
-      issue_number = issue.number
-      next unless issue_number
-
-      adw_labels = issue.labels.select { |l| l.name.start_with?("adw/") }
-
-      # Case 1: Issue with adw/done → check for new human comment to trigger patch
-      # NOTE: Must be checked BEFORE processed_issues filter, since the issue may have
-      # been processed in this session (full pipeline) but now needs a patch.
-      if adw_labels.any? { |l| l.name == "adw/done" }
-        comment_body = check_patch_trigger(issue_number, issue_last_comment)
-        if comment_body
-          patch_comments[issue_number] = comment_body
-        end
-        next
-      end
-
-      # For full pipeline only: skip issues already processed in this session
-      next if processed_issues.include?(issue_number)
-
-      # Case 2: Issue with other adw/ labels (not error) → skip (in progress)
-      if adw_labels.any?
-        non_error_labels = adw_labels.reject { |l| l.name == "adw/error" }
-        if non_error_labels.any?
-          puts "INFO: Skipping issue ##{issue_number} - ADW active (#{non_error_labels.map(&:name).join(', ')})"
-          next
-        end
-      end
-
-      # Case 3: Issue without adw labels or with adw/error → full pipeline
-      if should_process_issue?(issue_number, issue_last_comment)
-        new_qualifying_issues << issue_number
-      end
-    end
-
-    # Process patch issues
-    if patch_comments.any?
-      puts "INFO: Found #{patch_comments.length} issues needing patch: #{patch_comments.keys}"
-
-      patch_comments.each do |issue_number, comment_body|
-        break if shutdown_requested
-
-        unless trigger_patch_workflow(issue_number, comment_body)
-          puts "WARNING: Failed to trigger patch for issue ##{issue_number}, will retry in next cycle"
-        end
-      end
-    end
-
-    # Process full pipeline issues
-    if new_qualifying_issues.any?
-      puts "INFO: Found #{new_qualifying_issues.length} new qualifying issues: #{new_qualifying_issues}"
-
-      new_qualifying_issues.each do |issue_number|
-        break if shutdown_requested
-
-        if trigger_workflow(issue_number)
-          processed_issues.add(issue_number)
-        else
-          puts "WARNING: Failed to process issue ##{issue_number}, will retry in next cycle"
-        end
-      end
-    end
-
-    if new_qualifying_issues.empty? && patch_comments.empty?
-      puts "INFO: No new qualifying issues found"
-    end
-
-    cycle_time = Time.now - start_time
-    puts "INFO: Check cycle completed in #{cycle_time.round(2)} seconds"
-    puts "INFO: Total processed issues in session: #{processed_issues.length}"
+    github_repo_url = Adw::GitHub.repo_url
+    repo_path = Adw::GitHub.extract_repo_path(github_repo_url)
   rescue => e
-    warn "ERROR: Error during check cycle: #{e}"
-    warn e.backtrace.join("\n")
+    warn "ERROR: #{e}"
+    exit 1
   end
+
+  cron = Adw::Pipelines::TriggerCron.new(repo_path)
+
+  # Graceful shutdown flag
+  Signal.trap("INT") do
+    puts "\nINFO: Received SIGINT, initiating graceful shutdown..."
+    cron.shutdown_requested = true
+  end
+
+  Signal.trap("TERM") do
+    puts "\nINFO: Received SIGTERM, initiating graceful shutdown..."
+    cron.shutdown_requested = true
+  end
+
+  # Main entry point
+  if ARGV.include?("--help") || ARGV.include?("-h")
+    puts <<~HELP
+      Cron-based ADW trigger system that monitors GitHub issues and automatically processes them.
+
+      Usage: ./trigger_cron
+
+      Environment variables:
+        GITHUB_PAT - (Optional) GitHub Personal Access Token
+
+      The script will poll GitHub issues every 20 seconds and trigger
+      the ADW workflow for qualifying issues. It also detects human comments
+      on issues with adw/done label and triggers the patch workflow.
+
+      Note: Repository URL is automatically detected from git remote.
+    HELP
+    exit 0
+  end
+
+  puts "INFO: Starting ADW cron trigger"
+  puts "INFO: Repository: #{repo_path}"
+  puts "INFO: Polling interval: 20 seconds"
+
+  scheduler = Rufus::Scheduler.new
+
+  scheduler.every "20s" do
+    cron.check_and_process_issues
+  end
+
+  # Run initial check immediately
+  cron.check_and_process_issues
+
+  # Main loop
+  puts "INFO: Entering main scheduling loop"
+  loop do
+    break if cron.shutdown_requested
+
+    sleep 1
+  end
+
+  scheduler.shutdown
+  puts "INFO: Shutdown complete"
 end
-
-# Main entry point
-if ARGV.include?("--help") || ARGV.include?("-h")
-  puts <<~HELP
-    Cron-based ADW trigger system that monitors GitHub issues and automatically processes them.
-
-    Usage: ./trigger_cron
-
-    Environment variables:
-      GITHUB_PAT - (Optional) GitHub Personal Access Token
-
-    The script will poll GitHub issues every 20 seconds and trigger
-    the ADW workflow for qualifying issues. It also detects human comments
-    on issues with adw/done label and triggers the patch workflow.
-
-    Note: Repository URL is automatically detected from git remote.
-  HELP
-  exit 0
-end
-
-puts "INFO: Starting ADW cron trigger"
-puts "INFO: Repository: #{REPO_PATH}"
-puts "INFO: Polling interval: 20 seconds"
-
-scheduler = Rufus::Scheduler.new
-
-scheduler.every "20s" do
-  check_and_process_issues(processed_issues, issue_last_comment, shutdown_requested)
-end
-
-# Run initial check immediately
-check_and_process_issues(processed_issues, issue_last_comment, shutdown_requested)
-
-# Main loop
-puts "INFO: Entering main scheduling loop"
-loop do
-  break if shutdown_requested
-
-  sleep 1
-end
-
-scheduler.shutdown
-puts "INFO: Shutdown complete"

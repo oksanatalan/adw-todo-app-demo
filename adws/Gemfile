@@ -6,3 +6,9 @@ gem "rufus-scheduler"   # Cron-like polling
 gem "dotenv"            # Carga de .env
 gem "aws-sdk-s3"        # Upload de evidencia a Cloudflare R2 (S3-compatible)
 gem "rexml"             # Parser XML requerido por aws-sdk-s3
+
+group :test do
+  gem "minitest"
+  gem "mocha"
+  gem "rake"
+end

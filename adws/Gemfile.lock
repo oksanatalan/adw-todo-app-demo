@@ -24,6 +24,7 @@ GEM
     bigdecimal (4.0.1)
     concurrent-ruby (1.3.6)
     dotenv (3.2.0)
+    drb (2.2.3)
     dry-core (1.2.0)
       concurrent-ruby (~> 1.0)
       logger
@@ -54,8 +55,16 @@ GEM
     ice_nine (0.11.2)
     jmespath (1.6.2)
     logger (1.7.0)
+    minitest (6.0.2)
+      drb (~> 2.0)
+      prism (~> 1.5)
+    mocha (3.0.2)
+      ruby2_keywords (>= 0.0.5)
+    prism (1.9.0)
     raabro (1.4.0)
+    rake (13.3.1)
     rexml (3.4.4)
+    ruby2_keywords (0.0.5)
     rufus-scheduler (3.9.2)
       fugit (~> 1.1, >= 1.11.1)
     tzinfo (2.0.6)
@@ -71,6 +80,9 @@ DEPENDENCIES
   dotenv
   dry-struct
   dry-types
+  minitest
+  mocha
+  rake
   rexml
   rufus-scheduler
 
