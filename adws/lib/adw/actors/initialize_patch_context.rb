@@ -41,6 +41,7 @@ module Adw
         patch_tracker = {
           _type: :patch,
           adw_id: patch_adw_id,
+          branch_name: tracker[:branch_name],
           status: nil,
           trigger_comment: comment_body,
           patch_file: nil,

@@ -12,7 +12,6 @@ module Adw
       output :documentation_skipped, default: -> { false }
 
       def call
-        agent_name = prefixed_name("documentation_generator")
         log_actor("Generating documentation (agent: #{agent_name})")
         Adw::Tracker.update(tracker, issue_number, "documenting", logger)
         plan_path = Adw::PipelineHelpers.plan_path_for(issue_number)
@@ -45,6 +44,10 @@ module Adw
       end
 
       private
+
+      def agent_name
+        prefixed_name("documentation_generator")
+      end
 
       def post_documentation_summary(doc_path)
         full_path = if worktree_path && !Pathname.new(doc_path).absolute?
