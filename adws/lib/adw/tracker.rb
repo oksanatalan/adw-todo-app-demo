@@ -62,6 +62,11 @@ module Adw
       def set_phase_comment(tracker, phase, comment_id)
         Workflow.set_phase_comment(tracker, phase, comment_id)
       end
+
+      def comment_url(issue_number, comment_id)
+        repo_path = Adw::GitHub.extract_repo_path(Adw::GitHub.repo_url)
+        "https://github.com/#{repo_path}/issues/#{issue_number}#issuecomment-#{comment_id}"
+      end
     end
 
     module Issue
@@ -101,7 +106,7 @@ module Adw
           File.write(File.join(dir, "issue.yaml"), YAML.dump(data))
         end
 
-        def render_comment(issue_tracker)
+        def render_comment(issue_tracker, issue_number = nil)
           lines = []
           lines << "## 🤖 ADW Issue"
           lines << ""
@@ -121,7 +126,13 @@ module Adw
             lines << "### Workflows"
             lines << ""
             workflows.each_with_index do |wf, idx|
-              lines << "#{idx + 1}. `#{wf[:adw_id]}` (#{wf[:type]})"
+              wf_tracker = issue_number && Workflow.load(issue_number, wf[:adw_id])
+              if wf_tracker && wf_tracker[:comment_id]
+                url = Adw::Tracker.comment_url(issue_number, wf_tracker[:comment_id])
+                lines << "#{idx + 1}. [#{wf[:adw_id]}](#{url}) (#{wf[:type]})"
+              else
+                lines << "#{idx + 1}. `#{wf[:adw_id]}` (#{wf[:type]})"
+              end
             end
           end
 
@@ -134,7 +145,7 @@ module Adw
         def sync(issue_tracker, issue_number, logger)
           save(issue_number, issue_tracker)
 
-          body = render_comment(issue_tracker)
+          body = render_comment(issue_tracker, issue_number)
 
           if issue_tracker[:comment_id]
             Adw::GitHub.update_issue_comment(issue_tracker[:comment_id], body)
@@ -366,8 +377,7 @@ module Adw
         end
 
         def comment_url(issue_number, comment_id)
-          repo_path = Adw::GitHub.extract_repo_path(Adw::GitHub.repo_url)
-          "https://github.com/#{repo_path}/issues/#{issue_number}#issuecomment-#{comment_id}"
+          Adw::Tracker.comment_url(issue_number, comment_id)
         end
       end
     end
