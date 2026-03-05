@@ -10,12 +10,13 @@ module Adw
       output :tracker
 
       def call
-        log_actor("Reviewing issue visually (agent: issue_reviewer)")
+        agent_name = prefixed_name("issue_reviewer")
+        log_actor("Reviewing issue visually (agent: #{agent_name})")
         Adw::Tracker.update(tracker, issue_number, "reviewing_issue", logger)
         plan_path = Adw::PipelineHelpers.plan_path_for(issue_number)
 
         request = Adw::AgentTemplateRequest.new(
-          agent_name: "issue_reviewer",
+          agent_name: agent_name,
           slash_command: "/adw:review:issue",
           args: [issue.to_json, plan_path],
           issue_number: issue_number,
@@ -31,7 +32,7 @@ module Adw
           logger.warn("Issue review failed (non-blocking): #{response.output}")
           Adw::GitHub.create_issue_comment(
             issue_number,
-            Adw::PipelineHelpers.format_issue_message(adw_id, "issue_reviewer",
+            Adw::PipelineHelpers.format_issue_message(adw_id, agent_name,
               "Warning: Could not complete visual review: #{response.output}")
           )
           return
@@ -53,7 +54,7 @@ module Adw
         evidence_comment = Adw::PipelineHelpers.format_evidence_comment(result)
         comment_id = Adw::GitHub.create_issue_comment(
           issue_number,
-          Adw::PipelineHelpers.format_issue_message(adw_id, "issue_reviewer", evidence_comment)
+          Adw::PipelineHelpers.format_issue_message(adw_id, agent_name, evidence_comment)
         )
         Adw::Tracker.set_phase_comment(tracker, "review_issue", comment_id)
         Adw::Tracker.save(issue_number, tracker)

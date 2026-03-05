@@ -30,7 +30,7 @@ module Adw
 
         comment_id = Adw::GitHub.create_issue_comment(
           issue_number,
-          Adw::PipelineHelpers.format_issue_message(adw_id, "test_summary", parts.join("\n"))
+          Adw::PipelineHelpers.format_issue_message(adw_id, prefixed_name("test_summary"), parts.join("\n"))
         )
         Adw::Tracker.set_phase_comment(tracker, "test", comment_id)
         Adw::Tracker.save(issue_number, tracker)

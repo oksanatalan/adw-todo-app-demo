@@ -6,7 +6,6 @@ module Adw
       include Adw::Actors::PipelineInputs
 
       MAX_FIX_ATTEMPTS = 2
-      AGENT_NAME = "code_reviewer"
 
       input :issue
       input :tracker
@@ -14,7 +13,7 @@ module Adw
       output :review_result
 
       def call
-        log_actor("Reviewing code (agent: #{AGENT_NAME})")
+        log_actor("Reviewing code (agent: #{agent_name})")
         Adw::Tracker.update(tracker, issue_number, "reviewing", logger)
 
         plan_path = Adw::PipelineHelpers.plan_path_for(issue_number)
@@ -23,7 +22,7 @@ module Adw
         comment = Adw::PipelineHelpers.format_review_comment(result)
         comment_id = Adw::GitHub.create_issue_comment(
           issue_number,
-          Adw::PipelineHelpers.format_issue_message(adw_id, AGENT_NAME, comment)
+          Adw::PipelineHelpers.format_issue_message(adw_id, agent_name, comment)
         )
         Adw::Tracker.set_phase_comment(tracker, "review_tech", comment_id)
         Adw::Tracker.save(issue_number, tracker)
@@ -44,9 +43,13 @@ module Adw
 
       private
 
+      def agent_name
+        prefixed_name("code_reviewer")
+      end
+
       def run_review(plan_path)
         request = Adw::AgentTemplateRequest.new(
-          agent_name: AGENT_NAME,
+          agent_name: agent_name,
           slash_command: "/adw:review:tech",
           args: [issue.to_json, plan_path],
           issue_number: issue_number,
@@ -74,7 +77,7 @@ module Adw
           })
 
           fix_request = Adw::AgentTemplateRequest.new(
-            agent_name: "review_resolver_iter#{attempt}",
+            agent_name: "#{agent_name}_resolver_iter#{attempt}",
             slash_command: "/adw:resolve_review_issue",
             args: [fix_payload],
             issue_number: issue_number,
@@ -90,7 +93,7 @@ module Adw
           end
 
           recheck_request = Adw::AgentTemplateRequest.new(
-            agent_name: "#{AGENT_NAME}_recheck_#{attempt}",
+            agent_name: "#{agent_name}_recheck_#{attempt}",
             slash_command: "/adw:review:tech",
             args: [issue.to_json, plan_path],
             issue_number: issue_number,
@@ -105,7 +108,7 @@ module Adw
             comment = Adw::PipelineHelpers.format_review_comment(result)
             Adw::GitHub.create_issue_comment(
               issue_number,
-              Adw::PipelineHelpers.format_issue_message(adw_id, AGENT_NAME, "Post-fix review (attempt #{attempt}):\n#{comment}")
+              Adw::PipelineHelpers.format_issue_message(adw_id, agent_name, "Post-fix review (attempt #{attempt}):\n#{comment}")
             )
           else
             logger.warn("Re-review failed: #{recheck_response.output}")

@@ -33,6 +33,15 @@ issue_number = ARGV[0]
 comment_body = ARGV[1]
 adw_id = ARGV[2] || Adw::Utils.make_adw_id
 
+# Enter worktree if it exists (makes this script self-contained like adw_full_pipeline).
+# When spawned by trigger_cron with chdir, Dir.pwd is already the worktree and this is a no-op
+# (trees/issue-N doesn't exist inside the worktree itself).
+worktree_path = File.join(Dir.pwd, "trees", "issue-#{issue_number}")
+if Dir.exist?(worktree_path)
+  Dir.chdir(worktree_path)
+  ENV["CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] = "false"
+end
+
 logger = Adw::Utils.setup_logger(issue_number, adw_id, "adw_patch")
 logger.info("ADW Patch - ID: #{adw_id}")
 logger.info("Issue: ##{issue_number}")

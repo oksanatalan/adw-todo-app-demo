@@ -84,6 +84,11 @@ module Adw
       end
 
       def update(tracker, issue_number, new_status, logger)
+        if tracker[:_type] == :patch
+          update_patch(tracker, issue_number, new_status, logger)
+          return
+        end
+
         unless STATUSES.include?(new_status)
           raise ArgumentError, "Unknown tracker status: #{new_status}. Valid: #{STATUSES.join(', ')}"
         end
@@ -111,6 +116,11 @@ module Adw
       end
 
       def save(issue_number, tracker)
+        if tracker[:_type] == :patch
+          save_patch(issue_number, tracker[:adw_id], tracker)
+          return
+        end
+
         dir = tracker_dir(issue_number)
         FileUtils.mkdir_p(dir)
 

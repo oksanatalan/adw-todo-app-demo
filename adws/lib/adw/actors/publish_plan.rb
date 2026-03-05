@@ -9,10 +9,11 @@ module Adw
       output :tracker
 
       def call
+        agent_name = prefixed_name("sdlc_planner")
         log_actor("Publishing plan to GitHub")
         content = File.read(plan_path)
         body = Adw::PipelineHelpers.format_issue_message(
-          adw_id, "sdlc_planner",
+          adw_id, agent_name,
           "#{title}\n\n<details>\n<summary>#{title}</summary>\n\n#{content}\n</details>"
         )
         comment_id = Adw::GitHub.create_issue_comment(issue_number, body)
