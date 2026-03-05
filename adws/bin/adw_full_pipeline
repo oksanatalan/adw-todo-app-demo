@@ -6,19 +6,26 @@
 #
 # Usage: adw_full_pipeline <github-issue-number> [adw-id]
 #
+# Creates a worktree, chdirs into it, then runs the full pipeline.
+# All artifacts (.issues/ logs, tracker, plans) are written to the worktree.
+#
 # Workflow:
-# 1. Plan & Build (classify, create branch, plan, implement)
-# 2. Test with automatic failure resolution (up to 4 attempts)
-# 3. Technical code review with auto-fix of critical issues (up to 2 attempts)
-# 4. Visual review against issue with screenshot evidence (non-blocking)
-# 5. Documentation generation (non-blocking)
-# 6. Commit all changes
-# 7. Create pull request
+# 1. Setup environment (configure ports, install deps, start services)
+# 2. Plan & Build (classify, create branch, plan, implement)
+# 3. Test with automatic failure resolution (up to 4 attempts)
+# 4. Technical code review with auto-fix of critical issues (up to 2 attempts)
+# 5. Visual review against issue with screenshot evidence (non-blocking)
+# 6. Documentation generation (non-blocking)
+# 7. Commit all changes
+# 8. Create pull request
 #
 # Stops with error if tests fail or review finds unresolvable critical issues.
 #
 
 require "bundler/setup"
+require "open3"
+
+# Load ADW library (from the script's own directory, not Dir.pwd)
 require_relative "../lib/adw"
 
 if ARGV.length < 1
@@ -30,14 +37,35 @@ end
 
 issue_number = ARGV[0]
 adw_id = ARGV[1] || Adw::Utils.make_adw_id
+branch_name = "issue-#{issue_number}"
 
+# Create worktree and chdir into it
+script = File.join(File.dirname(__FILE__), "worktree_create")
+stdout, stderr, status = Open3.capture3(script, branch_name)
+
+unless status.success?
+  warn "Worktree creation failed: #{stderr.strip}"
+  exit 1
+end
+
+worktree_path = stdout.strip
+Dir.chdir(worktree_path)
+
+# Disable CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR so Claude CLI
+# doesn't walk up to the parent repo from the worktree.
+ENV["CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] = "false"
+
+# Now Adw.project_root (= Dir.pwd) points to the worktree.
+# Logger and all artifacts will be created here.
 logger = Adw::Utils.setup_logger(issue_number, adw_id, "adw_full_pipeline")
 logger.info("ADW Full Pipeline - ID: #{adw_id}")
+logger.info("Worktree: #{worktree_path}")
 
 result = Adw::Workflows::FullPipeline.result(
   issue_number: issue_number,
   adw_id: adw_id,
-  logger: logger
+  logger: logger,
+  branch_name: branch_name
 )
 
 unless result.success?

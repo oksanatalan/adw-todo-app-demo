@@ -82,12 +82,12 @@ module Adw
         end
       end
 
-      def spawn_with_color(issue_number, *cmd)
+      def spawn_with_color(issue_number, *cmd, **opts)
         color = color_for(issue_number)
         rst   = reset_seq
         read_io, write_io = IO.pipe
 
-        pid = Process.spawn(*cmd, out: write_io, err: write_io)
+        pid = Process.spawn(*cmd, out: write_io, err: write_io, **opts)
         write_io.close
         Process.detach(pid)
 
@@ -165,7 +165,19 @@ module Adw
 
         clog(issue_number, "INFO: Triggering ADW patch workflow for issue ##{issue_number}")
 
-        pid = spawn_with_color(issue_number, RbConfig.ruby, script_path, issue_number.to_s, comment_body)
+        # Run patch in the worktree if it exists
+        wt_path = File.join(Adw.project_root, "trees", "issue-#{issue_number}")
+        spawn_opts = {}
+        cmd = [RbConfig.ruby, script_path, issue_number.to_s, comment_body]
+
+        if Dir.exist?(wt_path)
+          clog(issue_number, "INFO: Running patch in worktree: #{wt_path}")
+          env = { "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR" => "false" }
+          cmd.unshift(env)
+          spawn_opts[:chdir] = wt_path
+        end
+
+        pid = spawn_with_color(issue_number, *cmd, **spawn_opts)
 
         clog(issue_number, "INFO: Successfully triggered patch workflow for issue ##{issue_number} (PID: #{pid})")
         true

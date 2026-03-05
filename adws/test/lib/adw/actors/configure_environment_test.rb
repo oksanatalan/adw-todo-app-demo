@@ -2,15 +2,14 @@
 
 require_relative "../../../test_helper"
 
-class ConfigureWorktreeTest < Minitest::Test
+class ConfigureEnvironmentTest < Minitest::Test
   include TestFactories
 
   def setup
     @issue_number = 42
     @adw_id = "abc12345"
     @logger = build_logger
-    @branch_name = "feat-42-abc12345-add-login"
-    @worktree_path = "/abs/path/trees/#{@branch_name}"
+    @worktree_path = "/abs/path/trees/feat-42-abc12345-add-login"
     @tracker = build_tracker
 
     Adw::Tracker.stubs(:update)
@@ -21,11 +20,10 @@ class ConfigureWorktreeTest < Minitest::Test
     json = '{"postgres_port":5742,"backend_port":8342,"frontend_port":9342,"compose_project":"adw-feat-42"}'
     Open3.stubs(:capture3).returns([json, "", mock_success_status])
 
-    result = Adw::Actors::ConfigureWorktree.result(
+    result = Adw::Actors::ConfigureEnvironment.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      branch_name: @branch_name,
       worktree_path: @worktree_path,
       tracker: @tracker
     )
@@ -40,31 +38,30 @@ class ConfigureWorktreeTest < Minitest::Test
   def test_fails_on_script_error
     Open3.stubs(:capture3).returns(["", "openssl not found", mock_failure_status])
 
-    result = Adw::Actors::ConfigureWorktree.result(
+    result = Adw::Actors::ConfigureEnvironment.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      branch_name: @branch_name,
       worktree_path: @worktree_path,
       tracker: @tracker
     )
 
     refute result.success?
-    assert_match(/Worktree configuration failed/, result.error)
+    assert_match(/Environment configuration failed/, result.error)
   end
 
   def test_deterministic_via_script
     json = '{"postgres_port":5742,"backend_port":8342,"frontend_port":9342,"compose_project":"adw-feat-42"}'
     Open3.stubs(:capture3).returns([json, "", mock_success_status])
 
-    result1 = Adw::Actors::ConfigureWorktree.result(
+    result1 = Adw::Actors::ConfigureEnvironment.result(
       issue_number: @issue_number, adw_id: @adw_id, logger: @logger,
-      branch_name: @branch_name, worktree_path: @worktree_path, tracker: build_tracker
+      worktree_path: @worktree_path, tracker: build_tracker
     )
 
-    result2 = Adw::Actors::ConfigureWorktree.result(
+    result2 = Adw::Actors::ConfigureEnvironment.result(
       issue_number: @issue_number, adw_id: @adw_id, logger: @logger,
-      branch_name: @branch_name, worktree_path: @worktree_path, tracker: build_tracker
+      worktree_path: @worktree_path, tracker: build_tracker
     )
 
     assert_equal result1.tracker[:postgres_port], result2.tracker[:postgres_port]

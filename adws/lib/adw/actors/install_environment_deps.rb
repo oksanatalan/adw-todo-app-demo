@@ -4,19 +4,19 @@ require "open3"
 
 module Adw
   module Actors
-    class InstallWorktreeDeps < Actor
+    class InstallEnvironmentDeps < Actor
       include Adw::Actors::PipelineInputs
 
       input :tracker, default: -> { {} }
-      input :worktree_path
       output :tracker
 
       def call
-        log_actor("Installing dependencies in worktree: #{worktree_path}")
+        path = worktree_path || Adw.project_root
+        log_actor("Installing dependencies in: #{path}")
         Adw::Tracker.update(tracker, issue_number, "setting_up", logger)
 
         script = File.join(Adw.project_root, "adws", "bin", "worktree", "setup")
-        _, stderr, status = Open3.capture3(script, worktree_path)
+        _, stderr, status = Open3.capture3(script, path)
 
         unless status.success?
           Adw::Tracker.update(tracker, issue_number, "error", logger)

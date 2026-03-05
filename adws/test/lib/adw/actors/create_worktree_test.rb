@@ -9,14 +9,12 @@ class CreateWorktreeTest < Minitest::Test
     @issue_number = 42
     @adw_id = "abc12345"
     @logger = build_logger
-    @branch_name = "feature-42-abc12345-test-issue"
+    @branch_name = "issue-42"
     @worktree_path = "/abs/path/trees/#{@branch_name}"
-    @issue = build_issue(number: @issue_number)
     @tracker = build_tracker
 
     Adw::Tracker.stubs(:update)
     Adw::Tracker.stubs(:save)
-    Adw::BranchName.stubs(:generate).returns(@branch_name)
   end
 
   def test_generates_branch_and_creates_worktree
@@ -26,8 +24,6 @@ class CreateWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      issue: @issue,
-      issue_command: "/feature",
       tracker: @tracker
     )
 
@@ -45,8 +41,6 @@ class CreateWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      issue: @issue,
-      issue_command: "/feature",
       tracker: @tracker
     )
 
@@ -54,18 +48,17 @@ class CreateWorktreeTest < Minitest::Test
     assert_match(/Worktree creation failed/, result.error)
   end
 
-  def test_calls_branch_name_generate_with_correct_args
-    Adw::BranchName.expects(:generate).with("feature", @issue_number, @adw_id, "Test Issue").returns(@branch_name)
+  def test_uses_issue_number_for_branch_name
     Open3.stubs(:capture3).returns(["#{@worktree_path}\n", "", mock_success_status])
 
-    Adw::Actors::CreateWorktree.result(
+    result = Adw::Actors::CreateWorktree.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      issue: @issue,
-      issue_command: "/feature",
       tracker: @tracker
     )
+
+    assert_equal "issue-#{@issue_number}", result.branch_name
   end
 
   private

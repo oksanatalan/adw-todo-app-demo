@@ -31,23 +31,18 @@ class AdwFullPipelineTest < Minitest::Test
     Adw::PipelineHelpers.stubs(:link_screenshot_urls)
     Adw::R2.stubs(:upload_evidence).returns([])
 
-    # Branch name generation (deterministic Ruby method)
-    Adw::BranchName.stubs(:generate).returns(@branch_name)
-
-    # Worktree script stubs
+    # Environment setup script stubs (worktree already created by bin script)
     script_base = File.join(Adw.project_root, "adws", "bin")
-    Open3.stubs(:capture3).with("#{script_base}/worktree_create", @branch_name)
-      .returns(["#{@worktree_path}\n", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("#{script_base}/worktree/isolate", @worktree_path)
+    Open3.stubs(:capture3).with("#{script_base}/worktree/isolate", Adw.project_root)
       .returns(['{"postgres_port":5500,"backend_port":8100,"frontend_port":9100,"compose_project":"adw-test"}', "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("#{script_base}/worktree/setup", @worktree_path)
+    Open3.stubs(:capture3).with("#{script_base}/worktree/setup", Adw.project_root)
       .returns(["", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("#{script_base}/worktree/start", @worktree_path)
+    Open3.stubs(:capture3).with("#{script_base}/worktree/start", Adw.project_root)
       .returns(["", "", FakeProcessStatus.new(true)])
 
-    # git commands (full_pipeline uses worktree, so chdir: is always present)
-    Open3.stubs(:capture3).with("git", "status", "--porcelain", chdir: anything).returns(["", "", FakeProcessStatus.new(true)])
-    Open3.stubs(:capture3).with("git", "push", "origin", anything, chdir: anything).returns(["", "", FakeProcessStatus.new(true)])
+    # git commands (no chdir since worktree_path is nil — pipeline runs from worktree dir)
+    Open3.stubs(:capture3).with("git", "status", "--porcelain").returns(["", "", FakeProcessStatus.new(true)])
+    Open3.stubs(:capture3).with("git", "push", "origin", anything).returns(["", "", FakeProcessStatus.new(true)])
   end
 
   def success_response(output: "done")
@@ -92,7 +87,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     assert result.success?, "Expected success but got error: #{result.error}"
@@ -105,7 +101,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     refute result.success?
@@ -121,7 +118,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     refute result.success?
@@ -151,7 +149,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     refute result.success?
@@ -183,7 +182,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     refute result.success?
@@ -206,7 +206,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     refute result.success?
@@ -229,7 +230,8 @@ class AdwFullPipelineTest < Minitest::Test
     result = Adw::Workflows::FullPipeline.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
-      logger: @logger
+      logger: @logger,
+      branch_name: @branch_name
     )
 
     assert result.success?, "Expected success even when visual review fails, got error: #{result.error}"

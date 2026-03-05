@@ -4,25 +4,25 @@ require "open3"
 
 module Adw
   module Actors
-    class StartWorktreeEnv < Actor
+    class StartEnvironment < Actor
       include Adw::Actors::PipelineInputs
 
       input :tracker, default: -> { {} }
-      input :worktree_path
       output :tracker
 
       def call
-        log_actor("Starting worktree environment: #{worktree_path}")
+        path = worktree_path || Adw.project_root
+        log_actor("Starting environment: #{path}")
         Adw::Tracker.update(tracker, issue_number, "starting", logger)
 
         script = File.join(Adw.project_root, "adws", "bin", "worktree", "start")
-        _, stderr, status = Open3.capture3(script, worktree_path)
+        _, stderr, status = Open3.capture3(script, path)
 
         unless status.success?
-          logger.warn("[StartWorktreeEnv] Services failed to start (non-blocking): #{stderr.strip}")
+          logger.warn("[StartEnvironment] Services failed to start (non-blocking): #{stderr.strip}")
         end
       rescue => e
-        logger.warn("[StartWorktreeEnv] Exception starting services (non-blocking): #{e.message}")
+        logger.warn("[StartEnvironment] Exception starting services (non-blocking): #{e.message}")
       end
     end
   end

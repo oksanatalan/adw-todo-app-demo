@@ -5,24 +5,23 @@ require "json"
 
 module Adw
   module Actors
-    class ConfigureWorktree < Actor
+    class ConfigureEnvironment < Actor
       include Adw::Actors::PipelineInputs
 
       input :tracker, default: -> { {} }
-      input :branch_name
-      input :worktree_path
       output :tracker
 
       def call
-        log_actor("Configuring worktree environment for: #{branch_name}")
+        path = worktree_path || Adw.project_root
+        log_actor("Configuring environment for: #{path}")
         Adw::Tracker.update(tracker, issue_number, "isolating", logger)
 
         script = File.join(Adw.project_root, "adws", "bin", "worktree", "isolate")
-        stdout, stderr, status = Open3.capture3(script, worktree_path)
+        stdout, stderr, status = Open3.capture3(script, path)
 
         unless status.success?
           Adw::Tracker.update(tracker, issue_number, "error", logger)
-          fail!(error: "Worktree configuration failed: #{stderr.strip}")
+          fail!(error: "Environment configuration failed: #{stderr.strip}")
         end
 
         ports = JSON.parse(stdout.strip, symbolize_names: true)

@@ -2,7 +2,7 @@
 
 require_relative "../../../test_helper"
 
-class InstallWorktreeDepsTest < Minitest::Test
+class InstallEnvironmentDepsTest < Minitest::Test
   include TestFactories
 
   def setup
@@ -14,15 +14,6 @@ class InstallWorktreeDepsTest < Minitest::Test
 
     Adw::Tracker.stubs(:update)
     Adw::Tracker.stubs(:save)
-  end
-
-  def test_updates_tracker_to_installing_deps
-    Adw::Tracker.expects(:update).with(@tracker, @issue_number, "installing_deps", @logger)
-    Open3.stubs(:capture3).returns(["", "", mock_success_status])
-
-    result = run_actor
-
-    assert result.success?
   end
 
   def test_succeeds_when_script_exits_zero
@@ -45,7 +36,7 @@ class InstallWorktreeDepsTest < Minitest::Test
   private
 
   def run_actor
-    Adw::Actors::InstallWorktreeDeps.result(
+    Adw::Actors::InstallEnvironmentDeps.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,

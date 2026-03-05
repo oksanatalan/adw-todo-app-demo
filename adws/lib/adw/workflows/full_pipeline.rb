@@ -6,8 +6,9 @@ module Adw
       input :issue_number
       input :adw_id
       input :logger
+      input :branch_name, default: -> { nil }
 
-      play Adw::Actors::SetupWorktree,
+      play Adw::Actors::SetupEnvironment,
            Adw::Actors::InitializeTracker,
            Adw::Actors::FetchIssue,
            Adw::Actors::ClassifyIssue,

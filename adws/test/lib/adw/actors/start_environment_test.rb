@@ -2,7 +2,7 @@
 
 require_relative "../../../test_helper"
 
-class StartWorktreeEnvTest < Minitest::Test
+class StartEnvironmentTest < Minitest::Test
   include TestFactories
 
   def setup
@@ -13,12 +13,12 @@ class StartWorktreeEnvTest < Minitest::Test
     @tracker = build_tracker
   end
 
-  def test_updates_tracker_to_setting_up
-    Adw::Tracker.expects(:update).with(@tracker, @issue_number, "setting_up", @logger)
+  def test_updates_tracker_to_starting
+    Adw::Tracker.expects(:update).with(@tracker, @issue_number, "starting", @logger)
     Adw::Tracker.stubs(:save)
     Open3.stubs(:capture3).returns(["", "", mock_success_status])
 
-    result = Adw::Actors::StartWorktreeEnv.result(
+    result = Adw::Actors::StartEnvironment.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
@@ -34,7 +34,7 @@ class StartWorktreeEnvTest < Minitest::Test
     Adw::Tracker.stubs(:save)
     Open3.stubs(:capture3).returns(["", "docker error", mock_failure_status])
 
-    result = Adw::Actors::StartWorktreeEnv.result(
+    result = Adw::Actors::StartEnvironment.result(
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
