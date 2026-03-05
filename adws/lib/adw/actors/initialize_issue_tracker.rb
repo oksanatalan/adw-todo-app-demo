@@ -1,26 +1,26 @@
 # frozen_string_literal: true
+
 module Adw
   module Actors
-    class InitializeTracker < Actor
+    class InitializeIssueTracker < Actor
       include Adw::Actors::PipelineInputs
       input :branch_name, default: -> { nil }
       input :workflow_type, default: -> { "full_pipeline" }
       output :issue_tracker
-      output :tracker
 
       def call
-        log_actor("Initializing trackers")
+        log_actor("Initializing issue tracker")
 
         # Load or create issue tracker
         loaded_issue = Adw::Tracker::Issue.load(issue_number) || {}
         loaded_issue[:branch_name] = branch_name if branch_name
-        self.issue_tracker = loaded_issue
 
-        # Create a fresh workflow tracker for this run
-        self.tracker = Adw::Tracker::Workflow.create(
-          adw_id: adw_id,
-          workflow_type: workflow_type
-        )
+        # Register workflow in issue tracker and sync to GitHub
+        # (creates the issue comment BEFORE any workflow comment)
+        Adw::Tracker::Issue.add_workflow(loaded_issue, adw_id: adw_id, type: workflow_type)
+        Adw::Tracker::Issue.sync(loaded_issue, issue_number, logger)
+
+        self.issue_tracker = loaded_issue
       end
     end
   end

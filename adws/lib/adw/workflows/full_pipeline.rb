@@ -8,7 +8,8 @@ module Adw
       input :logger
       input :branch_name, default: -> { nil }
 
-      play Adw::Actors::InitializeTracker,
+      play Adw::Actors::InitializeIssueTracker,
+           Adw::Actors::InitializeWorkflowTracker,
            Adw::Actors::SetupEnvironment,
            Adw::Actors::FetchIssue,
            Adw::Actors::ClassifyIssue,

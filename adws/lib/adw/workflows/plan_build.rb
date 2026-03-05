@@ -7,7 +7,8 @@ module Adw
       input :adw_id
       input :logger
 
-      play Adw::Actors::InitializeTracker,
+      play Adw::Actors::InitializeIssueTracker,
+           Adw::Actors::InitializeWorkflowTracker,
            Adw::Actors::FetchIssue,
            Adw::Actors::ClassifyIssue,
            Adw::Actors::CreateBranch,

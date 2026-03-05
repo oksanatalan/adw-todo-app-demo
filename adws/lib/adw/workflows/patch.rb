@@ -16,7 +16,8 @@ module Adw
 
       # Phase 1: Load state and classify the comment
       class Setup < Actor
-        play Adw::Actors::InitializeTracker,
+        play Adw::Actors::InitializeIssueTracker,
+             Adw::Actors::InitializeWorkflowTracker,
              Adw::Actors::FetchIssue,
              Adw::Actors::CheckoutBranch,
              Adw::Actors::ClassifyComment
