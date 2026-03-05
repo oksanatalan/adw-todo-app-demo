@@ -7,9 +7,7 @@ module Adw
     class DestroyWorktree < Actor
       include Adw::Actors::PipelineInputs
 
-      input :tracker
       output :issue_tracker
-      output :tracker
 
       def call
         wt_path = issue_tracker[:worktree_path]

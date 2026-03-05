@@ -10,7 +10,6 @@ class DestroyWorktreeTest < Minitest::Test
     @adw_id = "abc12345"
     @logger = build_logger
     @worktree_path = "/abs/path/trees/feat-42-abc12345-add-login"
-    @tracker = build_workflow_tracker
     @issue_tracker_data = build_issue_tracker(
       worktree_path: @worktree_path,
       backend_port: 8042,
@@ -32,7 +31,6 @@ class DestroyWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      tracker: @tracker,
       issue_tracker: @issue_tracker_data
     )
 
@@ -52,7 +50,6 @@ class DestroyWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      tracker: @tracker,
       issue_tracker: issue_tracker_no_wt
     )
 
@@ -66,7 +63,6 @@ class DestroyWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      tracker: @tracker,
       issue_tracker: @issue_tracker_data
     )
 
@@ -81,7 +77,6 @@ class DestroyWorktreeTest < Minitest::Test
       issue_number: @issue_number,
       adw_id: @adw_id,
       logger: @logger,
-      tracker: @tracker,
       issue_tracker: @issue_tracker_data
     )
 
