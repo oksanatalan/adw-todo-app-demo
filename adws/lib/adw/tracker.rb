@@ -109,8 +109,8 @@ module Adw
           lines << "|-------|-------|"
           lines << "| **Classification** | #{issue_tracker[:classification] || "pending"} |"
           lines << "| **Branch** | #{issue_tracker[:branch_name] ? "`#{issue_tracker[:branch_name]}`" : "pending"} |"
-          if issue_tracker[:worktree_path]
-            lines << "| **Worktree** | `#{File.basename(issue_tracker[:worktree_path])}` |"
+          lines << "| **Worktree** | `#{File.basename(issue_tracker[:worktree_path])}` |" if issue_tracker[:worktree_path]
+          if issue_tracker[:backend_port]
             lines << "| **Backend** | http://localhost:#{issue_tracker[:backend_port]} |"
             lines << "| **Frontend** | http://localhost:#{issue_tracker[:frontend_port]} |"
             lines << "| **Postgres** | localhost:#{issue_tracker[:postgres_port]} (#{issue_tracker[:compose_project]}) |"
